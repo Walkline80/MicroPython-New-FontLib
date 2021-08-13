@@ -22,9 +22,6 @@ HZK_FILE = 'combined.bin'
 class FontLibHeaderException(Exception):
 	pass
 
-class FontLibIndexTableException(Exception):
-	pass
-
 class FontLibException(Exception):
 	pass
 
@@ -67,14 +64,6 @@ class FontLibHeader(object):
 			self.index_table_address = FontLibHeader.LENGTH
 		else:
 			self.index_table_address = 0
-		# self.index_table_address = FontLibHeader.LENGTH
-
-
-class FontLibIndexTable(object):
-	def __init__(self, ascii_address, gb2312_address):
-		
-		self.ascii_address = ascii_address
-		self.gb2312_address = gb2312_address
 
 
 class FontLib(object):
@@ -103,7 +92,7 @@ class FontLib(object):
 				# else:
 				# 	pass
 
-				char_offset = self.__header.ascii_start + unicode - 0x20
+				char_offset = self.__header.ascii_start + (unicode - 0x20) * self.__header.data_size
 
 			font_file.seek(char_offset)
 			info_data = font_file.read(self.__header.data_size)
@@ -121,8 +110,8 @@ class FontLib(object):
 			return self.__get_character_unicode_buffer(font_file, unicode_set)
 
 	@property
-	def header_length(self):
-		return FontLibHeader.LENGTH
+	def data_size(self):
+		return self.__header.data_size
 
 	@property
 	def file_size(self):
@@ -141,10 +130,12 @@ class FontLib(object):
 HZK Info: {}\n\
     file size : {}\n\
   font height : {}\n\
+    data size : {}\n\
    characters : {}\n'.format(
 			  self.__font_filename,
 			  self.file_size,
 			  self.font_height,
+			  self.data_size,
 			  self.characters
 			))
 
@@ -162,7 +153,7 @@ def run_test():
 	if is_font_file_exist(font_file):
 		fontlib = FontLib(font_file)
 		fontlib.info()
-		buffer_list = fontlib.get_characters('Hello123') # 爱我中华')
+		buffer_list = fontlib.get_characters('Hello123!') # ('Hello123爱我中华')
 
 		if MICROPYTHON:
 			from machine import I2C, Pin
@@ -176,15 +167,26 @@ def run_test():
 				print('slave id: {}'.format(slave_list[0]))
 				oled = SSD1306_I2C(128, 64, i2c)
 
-				ba= b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x20\x10\x20'
-				buffer = framebuf.FrameBuffer(bytearray(ba), fontlib.font_height, fontlib.font_height, framebuf.MONO_HLSB)
+				buffer = framebuf.FrameBuffer(bytearray(buffer_list[-1][1]), fontlib.font_height, fontlib.font_height, framebuf.MONO_HLSB)
 				oled.fill(0)
 				oled.blit(buffer, 20, 20)
 				oled.show()
 		else:
+			from struct import unpack
+
 			for buffer in buffer_list:
 				character = chr(buffer[0])
 				print("'{}' {}\n".format(character, buffer))
+
+			data_size = fontlib.data_size
+			font_height = fontlib.font_height
+			bytes_per_row = int(data_size / font_height)
+
+			for row in range(font_height):
+				for buffer in buffer_list:
+					data = unpack('<H', buffer[1][row * bytes_per_row:row * bytes_per_row + bytes_per_row])
+					print('{:016b} '.format(data[0]).replace('0', '.').replace('1', '@'), end='')
+				print('')
 
 
 if __name__ == '__main__':
