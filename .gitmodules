@@ -4,3 +4,4 @@
 [submodule "client"]
 	path = client
 	url = https://gitee.com/walkline/fontmaker-client.git
+	branch = binary
