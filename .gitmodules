@@ -1,0 +1,7 @@
+[submodule "research"]
+	path = research
+	url = https://gitee.com/walkline/oled-research
+[submodule "client"]
+	path = client
+	url = https://gitee.com/walkline/fontmaker-client.git
+	branch = binary
