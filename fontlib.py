@@ -73,6 +73,7 @@ class FontLib(object):
 
 		with open(self.__font_filename, 'rb') as font_file:
 			self.__header = FontLibHeader(font_file.read(FontLibHeader.LENGTH))
+			self.__placeholder_buffer = self.__get_character_unicode_buffer(font_file, {ord('?')})[0][1]
 
 		gc.collect()
 
@@ -80,21 +81,33 @@ class FontLib(object):
 		return 0x20 <= char_code <= 0x7f
 
 	def __is_gb2312(self, char_code):
-		pass
+		return 0x80 <= char_code <= 0xffef
 
 	def __get_character_unicode_buffer(self, font_file, unicode_set):
 		buffer_list = []
 
 		for unicode in unicode_set:
 			if self.__is_ascii(unicode):
-				# if self.__header.has_index_table:
-				# 	pass
-				# else:
-				# 	pass
-
 				char_offset = self.__header.ascii_start + (unicode - 0x20) * self.__header.data_size
+			elif self.__is_gb2312(unicode):
+				gb2312_index = struct.pack('<H', unicode)
 
-			font_file.seek(char_offset)
+				for offset in range(self.__header.index_table_address, self.__header.ascii_start, 2):
+					font_file.seek(offset)
+
+					if font_file.read(2) == gb2312_index:
+						char_index_offset = font_file.tell() - 2
+						break
+				else:
+					buffer_list.append([unicode, self.__placeholder_buffer])
+					continue
+
+				char_offset = self.__header.gb2312_start + (char_index_offset - self.__header.index_table_address) / 2 * self.__header.data_size
+			else:
+				buffer_list.append([unicode, self.__placeholder_buffer])
+				continue
+
+			font_file.seek(int(char_offset))
 			info_data = font_file.read(self.__header.data_size)
 
 			buffer_list.append([unicode, info_data])
@@ -153,7 +166,7 @@ def run_test():
 	if is_font_file_exist(font_file):
 		fontlib = FontLib(font_file)
 		fontlib.info()
-		buffer_list = fontlib.get_characters('Hello123!') # ('Hello123爱我中华')
+		buffer_list = fontlib.get_characters('爱我，中华！Hello⒉あβǚㄘＢ⑴■☆')
 
 		if MICROPYTHON:
 			from machine import I2C, Pin
@@ -172,8 +185,6 @@ def run_test():
 				oled.blit(buffer, 20, 20)
 				oled.show()
 		else:
-			from struct import unpack
-
 			for buffer in buffer_list:
 				character = chr(buffer[0])
 				print("'{}' {}\n".format(character, buffer))
@@ -181,11 +192,16 @@ def run_test():
 			data_size = fontlib.data_size
 			font_height = fontlib.font_height
 			bytes_per_row = int(data_size / font_height)
+			chars_per_row = 8
 
-			for row in range(font_height):
-				for buffer in buffer_list:
-					data = unpack('<H', buffer[1][row * bytes_per_row:row * bytes_per_row + bytes_per_row])
-					print('{:016b} '.format(data[0]).replace('0', '.').replace('1', '@'), end='')
+			for char in range(len(buffer_list) // chars_per_row + 1):
+				for row in range(font_height):
+					for buffer in buffer_list[char * chars_per_row:char * chars_per_row + chars_per_row]:
+						for index in range(bytes_per_row):
+							data = buffer[1][row * bytes_per_row + index]
+							print('{:08b}'.format(data).replace('0', '.').replace('1', '@'), end='')
+						print(' ', end='')
+					print('')
 				print('')
 
 
