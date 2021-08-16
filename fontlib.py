@@ -72,7 +72,7 @@ class FontLib(object):
 		self.__header = None
 
 		with open(self.__font_filename, 'rb') as font_file:
-			self.__header = FontLibHeader(font_file.read(FontLibHeader.LENGTH))
+			self.__header = FontLibHeader(memoryview(font_file.read(FontLibHeader.LENGTH)))
 			self.__placeholder_buffer = self.__get_character_unicode_buffer(font_file, {ord('?')})[0][1]
 
 		gc.collect()
@@ -86,17 +86,24 @@ class FontLib(object):
 	def __get_character_unicode_buffer(self, font_file, unicode_set):
 		buffer_list = []
 
+		def __seek(data, target):
+			for index in range(0, 1000, 2):
+				if data[index: index + 2] == target:
+					return offset + index
+			else:
+				return 0
+
 		for unicode in unicode_set:
 			if self.__is_ascii(unicode):
 				char_offset = self.__header.ascii_start + (unicode - 0x20) * self.__header.data_size
 			elif self.__is_gb2312(unicode):
-				gb2312_index = struct.pack('<H', unicode)
+				gb2312_index = memoryview(struct.pack('<H', unicode))
 
-				for offset in range(self.__header.index_table_address, self.__header.ascii_start, 2):
+				for offset in range(self.__header.index_table_address, self.__header.ascii_start, 1000):
 					font_file.seek(offset)
 
-					if font_file.read(2) == gb2312_index:
-						char_index_offset = font_file.tell() - 2
+					char_index_offset = __seek(memoryview(font_file.read(1000)), gb2312_index)
+					if char_index_offset:
 						break
 				else:
 					buffer_list.append([unicode, self.__placeholder_buffer])
