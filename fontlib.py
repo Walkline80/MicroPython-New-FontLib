@@ -35,9 +35,11 @@ Header Data Sample:
 	[1] b'\x10'				- font height
 	[2] b'\xe4"'			- character counts
 	[1] b'\x01'				- has index table
+	[1] b'\x00'				- scan mode
+	[1] b'\x00'				- byte order
 	[4] b'$E\x00\x00'		- ascii start address
 	[4] b'$Q\x00\x00'		- gb2312 start address
-	[4] b'\\\x00A\x00'		- reserved
+	[2] b'\x00\x00'		- reserved
 '''
 class FontLibHeader(object):
 	LENGTH = 24
@@ -51,9 +53,11 @@ class FontLibHeader(object):
 		self.font_height,\
 		self.characters,\
 		self.has_index_table,\
+		self.scan_mode,\
+		self.byte_order,\
 		self.ascii_start,\
 		self.gb2312_start,\
-		_ = struct.unpack('<4sIBHBII4s', header_data)
+		_ = struct.unpack('<4sIBHBBBII2s', header_data)
 
 		if self.identify not in (b'FMUX',):
 			raise FontLibHeaderException('Invalid font file')
@@ -67,6 +71,11 @@ class FontLibHeader(object):
 
 
 class FontLib(object):
+	SCAN_MODE_HORIZONTAL = BYTE_ORDER_LSB = 0
+	SCAN_MODE_VERTICAL = BYTE_ORDER_MSB = 1
+	SCAN_MODE = {SCAN_MODE_HORIZONTAL: 'Horizontal', SCAN_MODE_VERTICAL: 'Vertical'}
+	BYTE_ORDER = {BYTE_ORDER_LSB: 'LSB', BYTE_ORDER_MSB: 'MSB'}
+
 	def __init__(self, font_filename):
 		self.__font_filename = font_filename
 		self.__header = None
@@ -119,6 +128,7 @@ class FontLib(object):
 
 			buffer_list.append([unicode, info_data])
 
+		gc.collect()
 		return buffer_list
 
 	def get_characters(self, characters: str):
@@ -128,6 +138,14 @@ class FontLib(object):
 				unicode_set.add(ord(char))
 
 			return self.__get_character_unicode_buffer(font_file, unicode_set)
+
+	@property
+	def scan_mode(self):
+		return self.__header.scan_mode
+
+	@property
+	def byte_order(self):
+		return self.__header.byte_order
 
 	@property
 	def data_size(self):
@@ -151,11 +169,15 @@ HZK Info: {}\n\
     file size : {}\n\
   font height : {}\n\
     data size : {}\n\
+    scan mode : {}\n\
+   byte order : {}\n\
    characters : {}\n'.format(
 			  self.__font_filename,
 			  self.file_size,
 			  self.font_height,
 			  self.data_size,
+			  self.SCAN_MODE[self.scan_mode],
+			  self.BYTE_ORDER[self.byte_order],
 			  self.characters
 			))
 
@@ -166,6 +188,10 @@ def is_font_file_exist(font_file):
 		return True
 	except:
 		return False
+
+def reverseBits(n):
+	bits = "{:0>8b}".format(n)
+	return int(bits[::-1], 2)
 
 def run_test():
 	font_file = CURRENT_DIR + FONT_DIR + HZK_FILE
@@ -187,7 +213,12 @@ def run_test():
 				print('slave id: {}'.format(slave_list[0]))
 				oled = SSD1306_I2C(128, 64, i2c)
 
-				buffer = framebuf.FrameBuffer(bytearray(buffer_list[-1][1]), fontlib.font_height, fontlib.font_height, framebuf.MONO_HLSB)
+				format = framebuf.MONO_VLSB
+
+				if fontlib.scan_mode == FontLib.SCAN_MODE_HORIZONTAL:
+					format = framebuf.MONO_HMSB if fontlib.byte_order == FontLib.BYTE_ORDER_MSB else framebuf.MONO_HLSB
+
+				buffer = framebuf.FrameBuffer(bytearray(buffer_list[0][1]), fontlib.font_height, fontlib.font_height, format)
 				oled.fill(0)
 				oled.blit(buffer, 20, 20)
 				oled.show()
@@ -206,6 +237,9 @@ def run_test():
 					for buffer in buffer_list[char * chars_per_row:char * chars_per_row + chars_per_row]:
 						for index in range(bytes_per_row):
 							data = buffer[1][row * bytes_per_row + index]
+							if fontlib.byte_order == FontLib.BYTE_ORDER_MSB:
+								data = reverseBits(buffer[1][row * bytes_per_row + index])
+
 							print('{:08b}'.format(data).replace('0', '.').replace('1', '@'), end='')
 						print(' ', end='')
 					print('')

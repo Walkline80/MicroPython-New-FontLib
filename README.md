@@ -49,8 +49,8 @@ $ client/youyuan_16.cmd
 | 高度 | 16 | 像素 |
 | 水平偏移 | 0 | 像素 |
 | 垂直偏移 | 0 | 像素 |
-| 扫描方式 | 行扫描 |  |
-| 字节顺序 | 高位在前 |  |
+| 扫描方式 | 水平扫描 | 不支持`垂直扫描` |
+| 字节顺序 | 低位在前 |  |
 
 #### 使用电脑测试
 
@@ -73,6 +73,8 @@ HZK Info: .//client/combined.bin
     file size : 303520
   font height : 16
     data size : 32
+    scan mode : Horizontal
+   byte order : LSB
    characters : 8932
 
 '！' [65281, b'\x00\x00\x00\x00\x00\x00\x08\x00\x0c\x00\x08\x00\x08\x00\x08\x00\x08\x00\x08\x00\x08\x00\x08\x00\x00\x00\x08\x00\x08\x00\x00\x00']
