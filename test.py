@@ -50,3 +50,30 @@ for row in range(font_height):
 			print('{:08b}'.format(data).replace('0', '.').replace('1', '@'), end='')
 		print(' ', end='')
 	print('')
+
+
+
+
+
+def main():
+	from machine import I2C, Pin
+	from drivers.ssd1306 import SSD1306_I2C
+	import framebuf
+
+	global oled
+
+	i2c = I2C(0, scl=Pin(18), sda=Pin(19))
+	slave_list = i2c.scan()
+
+	if slave_list:
+		print('slave id: {}'.format(slave_list[0]))
+		oled = SSD1306_I2C(128, 64, i2c)
+
+		char = bytearray( b'\x00\x00\x00\x00?\xf8\x11\x10\t\x10?\xfcD\x02B\x02\x1f\xf8\x04\x00\x07\xf8\x0e\x08\x13\x10 \xe0\x01\xe0\x1e\x1e')
+		buffer = framebuf.FrameBuffer(char, 16, 16, framebuf.MONO_HLSB)
+		oled.fill(0)
+		oled.blit(buffer, 20, 20)
+		oled.show()
+
+if __name__ == "__main__":
+	main()
