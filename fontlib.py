@@ -199,7 +199,6 @@ def run_test():
 	if is_font_file_exist(font_file):
 		fontlib = FontLib(font_file)
 		fontlib.info()
-		buffer_list = fontlib.get_characters('爱我，中华！Hello⒉あβǚㄘＢ⑴■☆')
 
 		if MICROPYTHON:
 			from machine import I2C, Pin
@@ -213,16 +212,38 @@ def run_test():
 				print('slave id: {}'.format(slave_list[0]))
 				oled = SSD1306_I2C(128, 64, i2c)
 
+				chars = '使用MicroPython开发板读取自定义字库并显示'
+				buffer_list = fontlib.get_characters(chars)
 				format = framebuf.MONO_VLSB
 
 				if fontlib.scan_mode == FontLib.SCAN_MODE_HORIZONTAL:
 					format = framebuf.MONO_HMSB if fontlib.byte_order == FontLib.BYTE_ORDER_MSB else framebuf.MONO_HLSB
 
-				buffer = framebuf.FrameBuffer(bytearray(buffer_list[0][1]), fontlib.font_height, fontlib.font_height, format)
-				oled.fill(0)
-				oled.blit(buffer, 20, 20)
-				oled.show()
+				def get_buffer(char):
+					for buffer in buffer_list:
+						if buffer[0] == ord(char):
+							return buffer[1]
+				
+				def oled_show(buffer, width, height, x, y):
+					fb = framebuf.FrameBuffer(bytearray(buffer), width, height, format)
+					oled.blit(fb, x, y)
+					oled.show()
+
+				x = y = 0
+				width = height = fontlib.font_height
+
+				for char in chars:
+					buffer = get_buffer(char)
+
+					if x > ((128 // width - 1) * width):
+						x = 0
+						y += height
+
+					oled_show(buffer, width, height, x, y)
+					x += width
 		else:
+			buffer_list = fontlib.get_characters('爱我，中华！Hello⒉あβǚㄘＢ⑴■☆')
+
 			for buffer in buffer_list:
 				character = chr(buffer[0])
 				print("'{}' {}\n".format(character, buffer))
