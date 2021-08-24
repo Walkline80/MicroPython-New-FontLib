@@ -1,2 +1,3 @@
-# client/combined.bin
+client/combined.bin
 drivers/ssd1306.py
+fontlib.py
