@@ -6,8 +6,6 @@
 
 使用`MicroPython 开发板`读取自定义字库并显示
 
-> 项目开发中
-
 ### 获取完整项目
 
 因为项目中使用了子模块 [FontMaker Client](https://gitee.com/walkline/fontmaker-client.git) 的`binary`分支 和 [OLED Research](https://gitee.com/walkline/oled-research.git)，所以要获取完整项目代码需要如下操作
