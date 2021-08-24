@@ -176,8 +176,8 @@ HZK Info: {}\n\
 			  self.file_size,
 			  self.font_height,
 			  self.data_size,
-			  self.SCAN_MODE[self.scan_mode],
-			  self.BYTE_ORDER[self.byte_order],
+			  FontLib.SCAN_MODE[self.scan_mode],
+			  FontLib.BYTE_ORDER[self.byte_order],
 			  self.characters
 			))
 
