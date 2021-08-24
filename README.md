@@ -167,7 +167,35 @@ HZK Info: .//client/combined.bin
 
 #### 使用开发板测试
 
-使用相关软件上传如下代码到开发板，运行`fontlib.py`即可
+推荐使用 [AMPY Batch Tool](https://gitee.com/walkline/a-batch-tool) (`ab`工具) 进行文件上传和调试操作
+
+```bahs
+# 上传文件
+$ ab
+
+# 进入 repl 模式
+$ ab --repl
+
+# 运行开发板上的文件
+# 使用快捷键 Ctrl-T
+>>>
+Run onboard file
+    [1] /boot.py
+    [2] /drivers/ssd1306.py
+    [3] /fontlib.py
+Choose a file: 3
+>>>
+
+# 在开发板上运行本地文件
+# 使用快捷键 Ctrl-R
+>>> Run local file
+    [1] fontlib.py
+    [2] drivers\ssd1306.py
+Choose a file: 1
+>>>
+```
+
+也可以使用相关软件上传如下代码到开发板，运行`fontlib.py`即可
 
 ```bash
 drivers/ssd1306.py
