@@ -81,7 +81,7 @@ class FontLib(object):
 
 		with open(self.__font_filename, 'rb') as font_file:
 			self.__header = FontLibHeader(memoryview(font_file.read(FontLibHeader.LENGTH)))
-			self.__placeholder_buffer = self.__get_character_unicode_buffer(font_file, {ord('?')})[0][1]
+			self.__placeholder_buffer = self.__get_character_unicode_buffer(font_file, {ord('?')})[ord('?')]
 
 		gc.collect()
 
@@ -92,40 +92,34 @@ class FontLib(object):
 		return 0x80 <= char_code <= 0xffef
 
 	def __get_character_unicode_buffer(self, font_file, unicode_set):
-		buffer_list = []
-
-		def __seek(data, target):
-			for index in range(0, 2000, 2):
-				if data[index: index + 2] == target:
-					return offset + index
-			else:
-				return 0
+		buffer_list = {}
 
 		for unicode in unicode_set:
 			if self.__is_ascii(unicode):
 				char_offset = self.__header.ascii_start + (unicode - 0x20) * self.__header.data_size
 			elif self.__is_gb2312(unicode):
-				gb2312_index = memoryview(struct.pack('<H', unicode))
+				gb2312_index = struct.pack('<H', unicode)
 
 				for offset in range(self.__header.index_table_address, self.__header.ascii_start, 1000):
 					font_file.seek(offset)
 
-					char_index_offset = __seek(memoryview(font_file.read(1000)), gb2312_index)
-					if char_index_offset:
+					char_index_offset = font_file.read(1000).find(gb2312_index)
+					if char_index_offset >= 0:
+						char_index_offset += offset
 						break
 				else:
-					buffer_list.append([unicode, self.__placeholder_buffer])
+					buffer_list[unicode] = self.__placeholder_buffer
 					continue
 
 				char_offset = self.__header.gb2312_start + (char_index_offset - self.__header.index_table_address) / 2 * self.__header.data_size
 			else:
-				buffer_list.append([unicode, self.__placeholder_buffer])
+				buffer_list[unicode] = self.__placeholder_buffer
 				continue
 
 			font_file.seek(int(char_offset))
 			info_data = font_file.read(self.__header.data_size)
 
-			buffer_list.append([unicode, info_data])
+			buffer_list[unicode] = info_data
 
 		gc.collect()
 		return buffer_list
@@ -181,13 +175,6 @@ HZK Info: {}\n\
 			))
 
 
-def is_font_file_exist(font_file):
-	try:
-		os.stat(font_file)
-		return True
-	except:
-		return False
-
 def reverseBits(n):
 	bits = "{:0>8b}".format(n)
 	return int(bits[::-1], 2)
@@ -233,7 +220,7 @@ def run_test():
 				break
 			except:
 				pass
-		
+
 		if selected:
 			fontlib = FontLib(font_files[selected - 1])
 			fontlib.info()
@@ -258,11 +245,6 @@ def run_test():
 
 			if fontlib.scan_mode == FontLib.SCAN_MODE_HORIZONTAL:
 				format = framebuf.MONO_HMSB if fontlib.byte_order == FontLib.BYTE_ORDER_MSB else framebuf.MONO_HLSB
-
-			def get_buffer(char):
-				for buffer in buffer_list:
-					if buffer[0] == ord(char):
-						return buffer[1]
 			
 			def oled_show(buffer, width, height, x, y):
 				fb = framebuf.FrameBuffer(bytearray(buffer), width, height, format)
@@ -273,7 +255,7 @@ def run_test():
 			width = height = fontlib.font_height
 
 			for char in chars:
-				buffer = get_buffer(char)
+				buffer = buffer_list[ord(char)]
 
 				if x > ((128 // width - 1) * width):
 					x = 0
@@ -282,11 +264,12 @@ def run_test():
 				oled_show(buffer, width, height, x, y)
 				x += width
 	else:
-		buffer_list = fontlib.get_characters('爱我，中华！Hello⒉あβǚㄘＢ⑴■☆')
+		buffer_dict = fontlib.get_characters('爱我，中华！Hello⒉あβǚㄘＢ⑴■☆')
+		buffer_list = []
 
-		for buffer in buffer_list:
-			character = chr(buffer[0])
-			print("'{}' {}\n".format(character, buffer))
+		for unicode, buffer in buffer_dict.items():
+			buffer_list.append([unicode, buffer])
+			print("{}: {}\n".format(chr(unicode), buffer))
 
 		data_size = fontlib.data_size
 		font_height = fontlib.font_height
