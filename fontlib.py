@@ -269,7 +269,7 @@ def run_test():
 
 		for unicode, buffer in buffer_dict.items():
 			buffer_list.append([unicode, buffer])
-			print("'{}' {}\n".format(chr(unicode), buffer))
+			print("{}: {}\n".format(chr(unicode), buffer))
 
 		data_size = fontlib.data_size
 		font_height = fontlib.font_height
