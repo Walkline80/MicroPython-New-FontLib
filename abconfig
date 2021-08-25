@@ -1,3 +1,4 @@
 client/combined.bin
+client/customize.bin
 drivers/ssd1306.py
 fontlib.py
