@@ -16,7 +16,6 @@ except ImportError:
 
 CURRENT_DIR = os.getcwd() if MICROPYTHON else os.path.dirname(__file__) + '/'
 FONT_DIR = '/client/'
-HZK_FILE = 'combined.bin'
 
 
 class FontLibHeaderException(Exception):
@@ -59,7 +58,7 @@ class FontLibHeader(object):
 		self.gb2312_start,\
 		_ = struct.unpack('<4sIBHBBBII2s', header_data)
 
-		if self.identify not in (b'FMUX',):
+		if self.identify not in (b'FMUX', b'FMUY'):
 			raise FontLibHeaderException('Invalid font file')
 
 		self.data_size = ((self.font_height - 1) // 8 + 1) * self.font_height
@@ -96,7 +95,7 @@ class FontLib(object):
 		buffer_list = []
 
 		def __seek(data, target):
-			for index in range(0, 1000, 2):
+			for index in range(0, 2000, 2):
 				if data[index: index + 2] == target:
 					return offset + index
 			else:
@@ -193,78 +192,119 @@ def reverseBits(n):
 	bits = "{:0>8b}".format(n)
 	return int(bits[::-1], 2)
 
+def list_bin_files(root):
+	import os
+
+	def list_files(root):
+		files=[]
+		for dir in os.listdir(root):
+			fullpath = ('' if root=='/' else root)+'/'+dir
+			if os.stat(fullpath)[0] & 0x4000 != 0:
+				files.extend(list_files(fullpath))
+			else:
+				if dir.endswith('.bin'):
+					files.append(fullpath)
+		return files
+
+	return list_files(root)
+
 def run_test():
-	font_file = CURRENT_DIR + FONT_DIR + HZK_FILE
+	font_files = list_bin_files(CURRENT_DIR + FONT_DIR)
 
-	if is_font_file_exist(font_file):
-		fontlib = FontLib(font_file)
+	if len(font_files) == 0:
+		print('No font file founded')
+		return
+	elif len(font_files) == 1:
+		fontlib = FontLib(font_files[0])
 		fontlib.info()
-
-		if MICROPYTHON:
-			from machine import I2C, Pin
-			from drivers.ssd1306 import SSD1306_I2C
-			import framebuf
-
-			i2c = I2C(0, scl=Pin(18), sda=Pin(19))
-			slave_list = i2c.scan()
-
-			if slave_list:
-				print('slave id: {}'.format(slave_list[0]))
-				oled = SSD1306_I2C(128, 64, i2c)
-
-				chars = '使用MicroPython开发板读取自定义字库并显示'
-				buffer_list = fontlib.get_characters(chars)
-				format = framebuf.MONO_VLSB
-
-				if fontlib.scan_mode == FontLib.SCAN_MODE_HORIZONTAL:
-					format = framebuf.MONO_HMSB if fontlib.byte_order == FontLib.BYTE_ORDER_MSB else framebuf.MONO_HLSB
-
-				def get_buffer(char):
-					for buffer in buffer_list:
-						if buffer[0] == ord(char):
-							return buffer[1]
-				
-				def oled_show(buffer, width, height, x, y):
-					fb = framebuf.FrameBuffer(bytearray(buffer), width, height, format)
-					oled.blit(fb, x, y)
-					oled.show()
-
-				x = y = 0
-				width = height = fontlib.font_height
-
-				for char in chars:
-					buffer = get_buffer(char)
-
-					if x > ((128 // width - 1) * width):
-						x = 0
-						y += height
-
-					oled_show(buffer, width, height, x, y)
-					x += width
-		else:
-			buffer_list = fontlib.get_characters('爱我，中华！Hello⒉あβǚㄘＢ⑴■☆')
-
-			for buffer in buffer_list:
-				character = chr(buffer[0])
-				print("'{}' {}\n".format(character, buffer))
-
-			data_size = fontlib.data_size
-			font_height = fontlib.font_height
-			bytes_per_row = int(data_size / font_height)
-			chars_per_row = 8
-
-			for char in range(len(buffer_list) // chars_per_row + 1):
-				for row in range(font_height):
-					for buffer in buffer_list[char * chars_per_row:char * chars_per_row + chars_per_row]:
-						for index in range(bytes_per_row):
-							data = buffer[1][row * bytes_per_row + index]
-							if fontlib.byte_order == FontLib.BYTE_ORDER_MSB:
-								data = reverseBits(buffer[1][row * bytes_per_row + index])
-
-							print('{:08b}'.format(data).replace('0', '.').replace('1', '@'), end='')
-						print(' ', end='')
-					print('')
+	else:
+		print('\nFont file list')
+		for index,file in enumerate(font_files, start=1):
+			print('    [{}] {}'.format(index, file))
+		
+		selected=None
+		while True:
+			try:
+				selected=int(input('Choose a file: '))
 				print('')
+				assert type(selected) is int and 0 < selected <= len(font_files)
+				break
+			except KeyboardInterrupt:
+				break
+			except:
+				pass
+		
+		if selected:
+			fontlib = FontLib(font_files[selected - 1])
+			fontlib.info()
+		else:
+			return
+
+	if MICROPYTHON:
+		from machine import I2C, Pin
+		from drivers.ssd1306 import SSD1306_I2C
+		import framebuf
+
+		i2c = I2C(0, scl=Pin(18), sda=Pin(19))
+		slave_list = i2c.scan()
+
+		if slave_list:
+			print('slave id: {}'.format(slave_list[0]))
+			oled = SSD1306_I2C(128, 64, i2c)
+
+			chars = '使用MicroPython开发板读取自定义字库并显示'
+			buffer_list = fontlib.get_characters(chars)
+			format = framebuf.MONO_VLSB
+
+			if fontlib.scan_mode == FontLib.SCAN_MODE_HORIZONTAL:
+				format = framebuf.MONO_HMSB if fontlib.byte_order == FontLib.BYTE_ORDER_MSB else framebuf.MONO_HLSB
+
+			def get_buffer(char):
+				for buffer in buffer_list:
+					if buffer[0] == ord(char):
+						return buffer[1]
+			
+			def oled_show(buffer, width, height, x, y):
+				fb = framebuf.FrameBuffer(bytearray(buffer), width, height, format)
+				oled.blit(fb, x, y)
+				oled.show()
+
+			x = y = 0
+			width = height = fontlib.font_height
+
+			for char in chars:
+				buffer = get_buffer(char)
+
+				if x > ((128 // width - 1) * width):
+					x = 0
+					y += height
+
+				oled_show(buffer, width, height, x, y)
+				x += width
+	else:
+		buffer_list = fontlib.get_characters('爱我，中华！Hello⒉あβǚㄘＢ⑴■☆')
+
+		for buffer in buffer_list:
+			character = chr(buffer[0])
+			print("'{}' {}\n".format(character, buffer))
+
+		data_size = fontlib.data_size
+		font_height = fontlib.font_height
+		bytes_per_row = int(data_size / font_height)
+		chars_per_row = 6
+
+		for char in range(len(buffer_list) // chars_per_row + 1):
+			for row in range(font_height):
+				for buffer in buffer_list[char * chars_per_row:char * chars_per_row + chars_per_row]:
+					for index in range(bytes_per_row):
+						data = buffer[1][row * bytes_per_row + index]
+						if fontlib.byte_order == FontLib.BYTE_ORDER_MSB:
+							data = reverseBits(buffer[1][row * bytes_per_row + index])
+
+						print('{:08b}'.format(data).replace('0', '.').replace('1', '@'), end='')
+					print(' ', end='')
+				print('')
+			print('')
 
 
 if __name__ == '__main__':
