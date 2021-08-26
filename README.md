@@ -182,7 +182,7 @@ o: b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00<\x00B\x00B\x00B\x0
 ...@........@...
 ```
 
-#### 使用开发板测试
+#### 使用开发板测试 1
 
 推荐使用 [AMPY Batch Tool](https://gitee.com/walkline/a-batch-tool) (`ab`工具) 进行文件上传和调试操作
 
@@ -212,13 +212,16 @@ Choose a file: 1
 >>>
 ```
 
-也可以使用相关软件上传如下代码到开发板，运行`fontlib.py`即可
+#### 使用开发板测试 2
+
+这是把`fontlib.py`文件中非`MicroPython`代码精简掉，并编译为字节码再运行测试的方法
 
 ```bash
-drivers/ssd1306.py
-client/combined.bin
-fontlib.py
+# 上传文件
+$ ab abconfig-mpy
 ```
+
+因为上传文件中已经包含了`main.py`，所以直接复位就可以看到效果了
 
 ### 关于速度
 

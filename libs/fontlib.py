@@ -3,19 +3,8 @@ The MIT License (MIT)
 Copyright © 2021 Walkline Wang (https://walkline.wang)
 Gitee: https://gitee.com/walkline/micropython-new-fontlib
 """
-import os
 import gc
 import struct
-
-
-try:
-	import framebuf
-	MICROPYTHON = True
-except ImportError:
-	MICROPYTHON = False
-
-CURRENT_DIR = os.getcwd() if MICROPYTHON else os.path.dirname(__file__) + '/'
-FONT_DIR = '/client/'
 
 
 class FontLibHeaderException(Exception):
@@ -24,22 +13,6 @@ class FontLibHeaderException(Exception):
 class FontLibException(Exception):
 	pass
 
-
-'''
-Header Data Sample:
-	b'FMUX\xa4\xa1\x04\x00\x10\xe4"\x01$E\x00\x00$Q\x00\x00\\\x00A\x00' # little-endian
-
-	[4] b'FMUX'				- identify
-	[4] b'\xa4\xa1\x04\x00'	- file length
-	[1] b'\x10'				- font height
-	[2] b'\xe4"'			- character counts
-	[1] b'\x01'				- has index table
-	[1] b'\x00'				- scan mode
-	[1] b'\x00'				- byte order
-	[4] b'$E\x00\x00'		- ascii start address
-	[4] b'$Q\x00\x00'		- gb2312 start address
-	[2] b'\x00\x00'		- reserved
-'''
 class FontLibHeader(object):
 	LENGTH = 24
 
@@ -186,122 +159,3 @@ HZK Info: {}\n\
 			  FontLib.BYTE_ORDER[self.byte_order],
 			  self.characters
 			))
-
-
-def reverseBits(n):
-	bits = "{:0>8b}".format(n)
-	return int(bits[::-1], 2)
-
-def list_bin_files(root):
-	import os
-
-	def list_files(root):
-		files=[]
-		for dir in os.listdir(root):
-			fullpath = ('' if root=='/' else root)+'/'+dir
-			if os.stat(fullpath)[0] & 0x4000 != 0:
-				files.extend(list_files(fullpath))
-			else:
-				if dir.endswith('.bin'):
-					files.append(fullpath)
-		return files
-
-	return list_files(root)
-
-def run_test():
-	font_files = list_bin_files(CURRENT_DIR + FONT_DIR)
-
-	if len(font_files) == 0:
-		print('No font file founded')
-		return
-	elif len(font_files) == 1:
-		fontlib = FontLib(font_files[0])
-		fontlib.info()
-	else:
-		print('\nFont file list')
-		for index,file in enumerate(font_files, start=1):
-			print('    [{}] {}'.format(index, file))
-		
-		selected=None
-		while True:
-			try:
-				selected=int(input('Choose a file: '))
-				print('')
-				assert type(selected) is int and 0 < selected <= len(font_files)
-				break
-			except KeyboardInterrupt:
-				break
-			except:
-				pass
-
-		if selected:
-			fontlib = FontLib(font_files[selected - 1])
-			fontlib.info()
-		else:
-			return
-
-	if MICROPYTHON:
-		from machine import I2C, Pin
-		from drivers.ssd1306 import SSD1306_I2C
-		import framebuf
-
-		i2c = I2C(0, scl=Pin(18), sda=Pin(19))
-		slave_list = i2c.scan()
-
-		if slave_list:
-			print('slave id: {}'.format(slave_list[0]))
-			oled = SSD1306_I2C(128, 64, i2c)
-
-			chars = '使用MicroPython开发板读取自定义字库并显示'
-			buffer_list = fontlib.get_characters(chars)
-			format = framebuf.MONO_VLSB
-
-			if fontlib.scan_mode == FontLib.SCAN_MODE_HORIZONTAL:
-				format = framebuf.MONO_HMSB if fontlib.byte_order == FontLib.BYTE_ORDER_MSB else framebuf.MONO_HLSB
-			
-			def oled_show(buffer, width, height, x, y):
-				fb = framebuf.FrameBuffer(bytearray(buffer), width, height, format)
-				oled.blit(fb, x, y)
-				oled.show()
-
-			x = y = 0
-			width = height = fontlib.font_height
-
-			for char in chars:
-				buffer = buffer_list[ord(char)]
-
-				if x > ((128 // width - 1) * width):
-					x = 0
-					y += height
-
-				oled_show(buffer, width, height, x, y)
-				x += width
-	else:
-		buffer_dict = fontlib.get_characters('爱我，中华！Hello⒉あβǚㄘＢ⑴■☆')
-		buffer_list = []
-
-		for unicode, buffer in buffer_dict.items():
-			buffer_list.append([unicode, buffer])
-			print("{}: {}\n".format(chr(unicode), buffer))
-
-		data_size = fontlib.data_size
-		font_height = fontlib.font_height
-		bytes_per_row = int(data_size / font_height)
-		chars_per_row = 6
-
-		for char in range(len(buffer_list) // chars_per_row + 1):
-			for row in range(font_height):
-				for buffer in buffer_list[char * chars_per_row:char * chars_per_row + chars_per_row]:
-					for index in range(bytes_per_row):
-						data = buffer[1][row * bytes_per_row + index]
-						if fontlib.byte_order == FontLib.BYTE_ORDER_MSB:
-							data = reverseBits(buffer[1][row * bytes_per_row + index])
-
-						print('{:08b}'.format(data).replace('0', '.').replace('1', '@'), end='')
-					print(' ', end='')
-				print('')
-			print('')
-
-
-if __name__ == '__main__':
-	run_test()
