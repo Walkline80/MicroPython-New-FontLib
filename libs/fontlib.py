@@ -74,7 +74,7 @@ class FontLib(object):
 				gb2312_index = struct.pack('<H', unicode)
 
 				def __seek(data, target):
-					seek_offset = 0
+					seek_offset = -1
 					while True:
 						seek_offset = data.find(target, seek_offset + 1)
 
@@ -84,13 +84,13 @@ class FontLib(object):
 							else:
 								continue
 						else:
-							return False
+							return -1
 
 				for offset in range(self.__header.index_table_address, self.__header.ascii_start, 1000):
 					font_file.seek(offset)
 
 					char_index_offset = __seek(font_file.read(1000), gb2312_index)
-					if char_index_offset:
+					if char_index_offset >= 0:
 						char_index_offset += offset
 						break
 				else:
