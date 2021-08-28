@@ -6,6 +6,7 @@ Gitee: https://gitee.com/walkline/micropython-new-fontlib
 import os
 import gc
 import struct
+import math
 
 
 try:
@@ -287,20 +288,34 @@ def run_test():
 		data_size = fontlib.data_size
 		font_height = fontlib.font_height
 		bytes_per_row = int(data_size / font_height)
-		chars_per_row = 6
+		chars_per_row = 150 // font_height
 
-		for char in range(len(buffer_list) // chars_per_row + 1):
-			for row in range(font_height):
-				for buffer in buffer_list[char * chars_per_row:char * chars_per_row + chars_per_row]:
-					for index in range(bytes_per_row):
-						data = buffer[1][row * bytes_per_row + index]
-						if fontlib.byte_order == FontLib.BYTE_ORDER_MSB:
-							data = reverseBits(buffer[1][row * bytes_per_row + index])
-
-						print('{:08b}'.format(data).replace('0', '.').replace('1', '@'), end='')
-					print(' ', end='')
+		if fontlib.scan_mode == FontLib.SCAN_MODE_VERTICAL:
+			for char in range(math.ceil(len(buffer_list) / chars_per_row)):
+				for count in range(bytes_per_row):
+					for col in range(8):
+						if count * 8 + col >= font_height: continue
+						for buffer in buffer_list[char * chars_per_row:char * chars_per_row + chars_per_row]:
+							for index in range(count * font_height, count * font_height + font_height):
+								data = ''.join(reversed('{:08b}'.format(buffer[1][index])))
+								print('{}'.format(data[col].replace('0', '.').replace('1', '@')), end='')
+							print(' ', end='')
+						print('')
 				print('')
-			print('')
+		else:
+			for char in range(math.ceil(len(buffer_list) / chars_per_row)):
+				for row in range(font_height):
+					for buffer in buffer_list[char * chars_per_row:char * chars_per_row + chars_per_row]:
+						for index in range(bytes_per_row):
+							data = buffer[1][row * bytes_per_row + index]
+							if fontlib.byte_order == FontLib.BYTE_ORDER_MSB:
+								data = reverseBits(buffer[1][row * bytes_per_row + index])
+
+							offset = 8 if (index + 1) * 8 < font_height else 8 - ((index + 1) * 8 - font_height)
+							print('{:08b}'.format(data)[:offset].replace('0', '.').replace('1', '@'), end='')
+						print(' ', end='')
+					print('')
+				print('')
 
 
 if __name__ == '__main__':
