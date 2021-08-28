@@ -1,0 +1,42 @@
+### load font file: 24.531 ms
+HZK Info: client/combined.bin
+    file size : 303520
+  font height : 16
+    data size : 32
+    scan mode : Horizontal
+   byte order : LSB
+   characters : 8932
+### get 227 chars: 3347.001 ms, avg: 14.7445 ms
+
+
+### load font file: 23.944 ms
+HZK Info: client/combined_hlsb.bin
+    file size : 303520
+  font height : 16
+    data size : 32
+    scan mode : Horizontal
+   byte order : MSB
+   characters : 8932
+### get 227 chars: 3332.982 ms, avg: 14.68274 ms
+
+
+### load font file: 26.361 ms
+HZK Info: client/customize.bin
+    file size : 63344
+  font height : 16
+    data size : 32
+    scan mode : Horizontal
+   byte order : LSB
+   characters : 1868
+### get 227 chars: 1242.115 ms, avg: 5.471872 ms
+
+
+### load font file: 24.269 ms
+HZK Info: client/customize_hmsb.bin
+    file size : 63344
+  font height : 16
+    data size : 32
+    scan mode : Horizontal
+   byte order : MSB
+   characters : 1868
+### get 227 chars: 1239.848 ms, avg: 5.461885 ms

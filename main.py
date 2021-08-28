@@ -151,6 +151,10 @@ class FontLibTest(object):
 
 
 chars =\
+'''　　清晨4:50，老刀穿过熙熙攘攘的步行街，去找彭蠡。
+　　从垃圾站下班之后，老刀回家洗了个澡，换了衣服。白色衬衫和褐色裤子，这是他唯一一套体面衣服，衬衫袖口磨了边，他把袖子卷到胳膊肘。老刀四十八岁，没结婚，已经过了注意外表的年龄，又没人照顾起居，这一套衣服留着穿了很多年，每次穿一天，回家就脱了叠上。他在垃圾站上班，没必要穿得体面，偶尔参加谁家小孩的婚礼，才拿出来穿在身上。这一次他不想脏兮兮地见陌生人。他在垃圾站连续工作了五小时，很担心身上会有味道。'''
+
+chars2 =\
 '''　　问题，到底应该如何实现。
 　　既然如此，我们都知道，只要有意义，那么就必须慎重考虑。
 　　现在，解决问题的问题，是非常非常重要的。
@@ -159,9 +163,7 @@ chars =\
 　　一般来说，生活中，若问题出现了，我们就不得不考虑它出现了的事实。
 　　维龙曾经说过，要成功不需要什么特别的才能，只要把你能做的小事做得好就行了。
 　　这似乎解答了我的疑惑。
-　　这种事实对本人来说意义重大，相信对这个世界也是有一定意义的。
-'''
-chars2 = '几凡也习丰井无勿正轧占田它地因网乔乒仿次军她巡寿找批走抗扭估体伯饮即妙到贤忠咏使周兔泡陕'
+　　这种事实对本人来说意义重大，相信对这个世界也是有一定意义的。'''
 
 
 if __name__ == '__main__':
@@ -172,8 +174,12 @@ if __name__ == '__main__':
 		oled = SSD1306_I2C(128, 64, i2c)
 
 		runner = FontLibTest(oled)
-		runner.load_font('client/combined.bin')
+		# runner.load_font('client/combined.bin')
+		# runner.load_font('client/customize.bin')
+		# runner.load_font('client/combined_hmsb.bin')
+		# runner.load_font('client/customize_hmsb.bin')
+		runner.load_font('client/combined_vlsb.bin')
 
-		runner.run_test1(chars) # 一次性读取所有字符数据然后逐个显示
-		# runner.run_test2(chars) # 一次读取并显示一个字符数据
+		# runner.run_test1(chars) # 一次性读取所有字符数据然后逐个显示
+		runner.run_test2(chars) # 一次读取并显示一个字符数据
 		# runner.run_test3(chars) # 一次读取一屏并显示
