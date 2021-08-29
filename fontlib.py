@@ -296,6 +296,8 @@ def run_test():
 					for col in range(8):
 						if count * 8 + col >= font_height: continue
 						for buffer in buffer_list[char * chars_per_row:char * chars_per_row + chars_per_row]:
+							if len(buffer[1]) < data_size: buffer[1] = bytes(data_size)
+
 							for index in range(count * font_height, count * font_height + font_height):
 								data = ''.join(reversed('{:08b}'.format(buffer[1][index])))
 								print('{}'.format(data[col].replace('0', '.').replace('1', '@')), end='')
@@ -307,6 +309,7 @@ def run_test():
 				for row in range(font_height):
 					for buffer in buffer_list[char * chars_per_row:char * chars_per_row + chars_per_row]:
 						for index in range(bytes_per_row):
+							if len(buffer[1]) < data_size: buffer[1] = bytes(data_size)
 							data = buffer[1][row * bytes_per_row + index]
 							if fontlib.byte_order == FontLib.BYTE_ORDER_MSB:
 								data = reverseBits(buffer[1][row * bytes_per_row + index])
