@@ -114,3 +114,37 @@ def main():
 if __name__ == "__main__":
 	pass
 	# main()
+
+from fontlib import FontLib
+
+fontlib = FontLib('combined.bin')
+data_size = fontlib.data_size
+font_height = fontlib.font_height
+bytes_per_row = int(data_size / font_height)
+#buffer = b'\x00\x80\x40\x48\x50\x40\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0e\x11\x11\x11\x11\x0f\x10\x00\x00\x00\x00\x00\x00\x00\x00'
+#buffer = b'\x00\x00\x00\x00\x00\x00\x10\x00\x08\x00\x00\x00\x3c\x00\x42\x00\x3e\x00\x42\x00\x42\x00\x42\x00\x3d\x00\x00\x00\x00\x00\x00\x00'
+#print(len(buffer))
+
+def reverseBits(n):
+	bits = "{:0>8b}".format(n)
+	return int(bits[::-1], 2)
+import math
+buffer_dict = fontlib.get_characters('\ue000\ue001\ue002\ue003\ue004\ue005\ue006\ue007')
+buffer_list = []
+
+for unicode, buffer in buffer_dict.items():
+	buffer_list.append([unicode, buffer])
+	print("{}: {}\n".format(chr(unicode), buffer))
+
+for char in range(math.ceil(len(buffer_list) / chars_per_row)):
+	for row in range(font_height):
+		#for buffer in buffer_list[char * chars_per_row:char * chars_per_row + chars_per_row]:
+		for index in range(bytes_per_row):
+			#if len(buffer[1]) < data_size: buffer[1] = bytes(data_size)
+			data = buffer[row * bytes_per_row + index]
+			#data = reverseBits(buffer[1][row * bytes_per_row + index])
+
+			offset = 8 if (index + 1) * 8 < font_height else 8 - ((index + 1) * 8 - font_height)
+			print('{:08b}'.format(data)[:offset].replace('0', '.').replace('1', '@'), end='')
+		print('')
+print('')
