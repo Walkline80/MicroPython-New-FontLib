@@ -147,46 +147,71 @@ class FontLibTest(object):
 			return
 
 		from math import ceil
+		from machine import Timer
+
 		chars = chars.replace('\t', '')
 		newline_count = chars.count('\n')
 		chars_count = len(chars)
 		chars_per_row = int(self.__oled_width / self.__fontlib.font_height)
 		chars_per_col = int(self.__oled_height / self.__fontlib.font_height)
+		chars_per_page = chars_per_row * chars_per_col
 		total_rows = ceil(chars_count / chars_per_row) + newline_count
 		total_pages = ceil(total_rows / chars_per_col)
+		buffer_size = self.__oled_width // 8 * self.__oled_height
+		fb_foreground = framebuf.FrameBuffer(bytearray(buffer_size * 2), self.__oled_width, self.__oled_height * 2, framebuf.MONO_VLSB)
+		fb_background = framebuf.FrameBuffer(bytearray(buffer_size), self.__oled_width, self.__oled_height, framebuf.MONO_VLSB)
 		x = y = 0
 		width = height = self.__fontlib.font_height
-		buffer_size = self.__oled_width // 8 * self.__oled_height
-		fb_foreground = framebuf.FrameBuffer(bytearray(buffer_size))
-		fb_background = framebuf.FrameBuffer(bytearray(buffer_size))
+		current_page = 0
 
-		def __fill_page(fb):
-			pass
-		return
+		buffer_dict = self.__fontlib.get_characters(chars)
 
-		for char in chars:
-			buffer_dict = self.__fontlib.get_characters(char)
+		def __fill_page():
+			nonlocal x, y, height, current_page, chars_per_page, fb_foreground
 
-			if ord(char) == 10:
-				x = 0
-				y += height
-				continue
+			while current_page < 2:
+				for char in chars[current_page * chars_per_page:current_page * chars_per_page + chars_per_page]:
+					if ord(char) == 10:
+						x = 0
+						y += height
+						continue
+				
+					buffer = memoryview(buffer_dict[ord(char)])
 
-			buffer = memoryview(buffer_dict[ord(char)])
+					if x > ((self.__oled_width // width - 1) * width):
+						x = 0
+						y += height
 
-			if x > ((self.__oled_width // width - 1) * width):
-				x = 0
-				y += height
+					# if y > ((self.__oled_height // height - 1) * height * 2):
+					# 	x = y = 0
+						# self.__oled.fill(0)
 
-			if y > ((self.__oled_height // height - 1) * height):
-				x = 0
-				y = 0
-				sleep(1.5)
-				self.__oled.fill(0)
- 
-			self.__fill_buffer(buffer, x, y, self.__buffer_format)
-			self.__oled.show()
-			x += width
+					fb_foreground.blit(buffer, x, y)
+					self.__oled.show()
+					x += width
+				current_page += 1
+
+		def scroll_cb():
+			nonlocal y
+
+			fb_foreground.scroll(0, -1)
+			y += 1
+
+
+		__fill_page()
+
+		x = y = 0
+		self.__oled.blit(fb_foreground, x, y)
+		self.__oled.show()
+
+		sleep(0.5)
+
+		scroll_timer = Timer(1)
+		scroll_timer.init(
+			mode=Timer.PERIODIC,
+			period=50,
+			callback=scroll_cb
+		)
 
 	def __get_format(self):
 		format = framebuf.MONO_VLSB
