@@ -142,6 +142,52 @@ class FontLibTest(object):
 		diff_time = ticks_diff(ticks_us(), start_time) / 1000
 		print('### show {} chars: {} ms, avg: {} ms'.format(len(chars), diff_time, diff_time / len(chars)))
 
+	def run_test4(self, chars=None):
+		if self.__oled is None or chars is None:
+			return
+
+		from math import ceil
+		chars = chars.replace('\t', '')
+		newline_count = chars.count('\n')
+		chars_count = len(chars)
+		chars_per_row = int(self.__oled_width / self.__fontlib.font_height)
+		chars_per_col = int(self.__oled_height / self.__fontlib.font_height)
+		total_rows = ceil(chars_count / chars_per_row) + newline_count
+		total_pages = ceil(total_rows / chars_per_col)
+		x = y = 0
+		width = height = self.__fontlib.font_height
+		buffer_size = self.__oled_width // 8 * self.__oled_height
+		fb_foreground = framebuf.FrameBuffer(bytearray(buffer_size))
+		fb_background = framebuf.FrameBuffer(bytearray(buffer_size))
+
+		def __fill_page(fb):
+			pass
+		return
+
+		for char in chars:
+			buffer_dict = self.__fontlib.get_characters(char)
+
+			if ord(char) == 10:
+				x = 0
+				y += height
+				continue
+
+			buffer = memoryview(buffer_dict[ord(char)])
+
+			if x > ((self.__oled_width // width - 1) * width):
+				x = 0
+				y += height
+
+			if y > ((self.__oled_height // height - 1) * height):
+				x = 0
+				y = 0
+				sleep(1.5)
+				self.__oled.fill(0)
+ 
+			self.__fill_buffer(buffer, x, y, self.__buffer_format)
+			self.__oled.show()
+			x += width
+
 	def __get_format(self):
 		format = framebuf.MONO_VLSB
 
@@ -224,8 +270,8 @@ if __name__ == '__main__':
 	if slave_list:
 		oled = SSD1306_I2C(128, 64, i2c)
 
-		# runner = FontLibTest(oled)
-		# runner.load_font('client/combined.bin')
+		runner = FontLibTest(oled)
+		runner.load_font('client/combined.bin')
 		# runner.load_font('client/customize.bin')
 		# runner.load_font('client/combined_hmsb.bin')
 		# runner.load_font('client/customize_hmsb.bin')
@@ -234,6 +280,7 @@ if __name__ == '__main__':
 		# runner.run_test1(chars) # 一次性读取所有字符数据然后逐个显示
 		# runner.run_test2(chars) # 一次读取并显示一个字符数据
 		# runner.run_test3(chars) # 一次读取一屏并显示
+		runner.run_test4(chars2)
 
 
 		# 要测试 FontLibTest2 的代码，需要生成一个新字库
@@ -243,5 +290,5 @@ if __name__ == '__main__':
 		# $ FontMaker_Cli.exe -f 幼圆 --input input.txt -o welcome.bin
 		#
 		# 将生成的字库和 fonts/open-iconic.bin 一起上传到开发板
-		runner = FontLibTest2(oled)
-		runner.run_test()
+		# runner = FontLibTest2(oled)
+		# runner.run_test()
