@@ -132,7 +132,6 @@ class FontLib(object):
 
 			font_file.seek(int(char_offset))
 			info_data = font_file.read(self.__header.data_size)
-
 			buffer_list[unicode] = info_data
 
 		gc.collect()
@@ -216,7 +215,12 @@ def run_test():
 		print('No font file founded')
 		return
 	elif len(font_files) == 1:
+		if MICROPYTHON:
+			from utime import ticks_diff, ticks_us
+			start_time = ticks_us()
 		fontlib = FontLib(font_files[0])
+		if MICROPYTHON:
+			print('### load font file: {} ms'.format(ticks_diff(ticks_us(), start_time) / 1000))
 		fontlib.info()
 	else:
 		print('\nFont file list')
@@ -236,7 +240,12 @@ def run_test():
 				pass
 
 		if selected:
+			if MICROPYTHON:
+				from utime import ticks_diff, ticks_us
+				start_time = ticks_us()
 			fontlib = FontLib(font_files[selected - 1])
+			if MICROPYTHON:
+				print('### load font file: {} ms'.format(ticks_diff(ticks_us(), start_time) / 1000))
 			fontlib.info()
 		else:
 			return
@@ -245,6 +254,7 @@ def run_test():
 		from machine import I2C, Pin
 		from drivers.ssd1306 import SSD1306_I2C
 		import framebuf
+		from utime import ticks_us, ticks_diff
 
 		i2c = I2C(0, scl=Pin(18), sda=Pin(19))
 		slave_list = i2c.scan()
@@ -254,29 +264,35 @@ def run_test():
 			oled = SSD1306_I2C(128, 64, i2c)
 
 			chars = '使用MicroPython开发板读取自定义字库并显示'
+			start_time = ticks_us()
 			buffer_list = fontlib.get_characters(chars)
-			format = framebuf.MONO_VLSB
+			diff_time = ticks_diff(ticks_us(), start_time) / 1000
+			print('###  get {} chars: {} ms, avg: {} ms'.format(len(chars), diff_time, diff_time / len(chars)))
 
+			format = framebuf.MONO_VLSB
 			if fontlib.scan_mode == FontLib.SCAN_MODE_HORIZONTAL:
 				format = framebuf.MONO_HMSB if fontlib.byte_order == FontLib.BYTE_ORDER_MSB else framebuf.MONO_HLSB
 			
-			def oled_show(buffer, width, height, x, y):
+			def __fill_buffer(buffer, width, height, x, y):
 				fb = framebuf.FrameBuffer(bytearray(buffer), width, height, format)
 				oled.blit(fb, x, y)
-				oled.show()
 
 			x = y = 0
 			width = height = fontlib.font_height
 
+			start_time = ticks_us()
 			for char in chars:
-				buffer = buffer_list[ord(char)]
+				buffer = memoryview(buffer_list[ord(char)])
 
 				if x > ((128 // width - 1) * width):
 					x = 0
 					y += height
 
-				oled_show(buffer, width, height, x, y)
+				__fill_buffer(buffer, width, height, x, y)
 				x += width
+			oled.show()
+			diff_time = ticks_diff(ticks_us(), start_time) / 1000
+			print('### show {} chars: {} ms, avg: {} ms'.format(len(chars), diff_time, diff_time / len(chars)))
 	else:
 		buffer_dict = fontlib.get_characters('爱我，中华！Hello⒉あβǚㄘＢ⑴■☆')
 		buffer_list = []
