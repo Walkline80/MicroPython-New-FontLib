@@ -122,17 +122,16 @@ class FontLib(object):
 						char_index_offset += offset
 						break
 				else:
-					buffer_list[unicode] = self.__placeholder_buffer
+					buffer_list[unicode] = memoryview(self.__placeholder_buffer)
 					continue
 
 				char_offset = self.__header.gb2312_start + (char_index_offset - self.__header.index_table_address) / 2 * self.__header.data_size
 			else:
-				buffer_list[unicode] = self.__placeholder_buffer
+				buffer_list[unicode] = memoryview(self.__placeholder_buffer)
 				continue
 
 			font_file.seek(int(char_offset))
-			info_data = font_file.read(self.__header.data_size)
-			buffer_list[unicode] = info_data
+			buffer_list[unicode] = memoryview(font_file.read(self.__header.data_size))
 
 		gc.collect()
 		return buffer_list
@@ -143,6 +142,7 @@ class FontLib(object):
 			for char in characters:
 				unicode_set.add(ord(char))
 
+			gc.collect()
 			return self.__get_character_unicode_buffer(font_file, unicode_set)
 
 	@property
@@ -299,7 +299,7 @@ def run_test():
 
 		for unicode, buffer in buffer_dict.items():
 			buffer_list.append([unicode, buffer])
-			print("{}: {}\n".format(chr(unicode), buffer))
+			print("{}: {}\n".format(chr(unicode), bytes(buffer)))
 
 		data_size = fontlib.data_size
 		font_height = fontlib.font_height
