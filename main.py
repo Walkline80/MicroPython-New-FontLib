@@ -27,6 +27,9 @@ class FontLibTest(object):
 		self.__fontlib = FontLib(font_file)
 		print('### load font file: {} ms'.format(ticks_diff(ticks_us(), start_time) / 1000))
 		self.__fontlib.info()
+
+		self.__font_width = self.__fontlib.font_height
+		self.__font_height = self.__fontlib.font_height
 		self.__buffer_format = self.__get_format()
 
 	def run_test1(self, chars=None):
@@ -48,7 +51,7 @@ class FontLibTest(object):
 				y += height
 				continue
 
-			buffer = buffer_dict[ord(char)]
+			buffer = memoryview(buffer_dict[ord(char)])
 
 			if x > ((self.__oled_width // width - 1) * width):
 				x = 0
@@ -59,9 +62,9 @@ class FontLibTest(object):
 				y = 0
 				sleep(1.5)
 				self.__oled.fill(0)
-				self.__oled.show()
 
-			self.__show(buffer, width, height, x, y, self.__buffer_format)
+			self.__fill_buffer(buffer, x, y, self.__buffer_format)
+			self.__oled.show()
 			x += width
 		diff_time = ticks_diff(ticks_us(), start_time) / 1000
 		print('### show {} chars: {} ms, avg: {} ms'.format(len(chars), diff_time, diff_time / len(chars)))
@@ -82,7 +85,7 @@ class FontLibTest(object):
 				y += height
 				continue
 
-			buffer = buffer_dict[ord(char)]
+			buffer = memoryview(buffer_dict[ord(char)])
 
 			if x > ((self.__oled_width // width - 1) * width):
 				x = 0
@@ -93,9 +96,9 @@ class FontLibTest(object):
 				y = 0
 				sleep(1.5)
 				self.__oled.fill(0)
-				self.__oled.show()
  
-			self.__show(buffer, width, height, x, y, self.__buffer_format)
+			self.__fill_buffer(buffer, x, y, self.__buffer_format)
+			self.__oled.show()
 			x += width
 		diff_time = ticks_diff(ticks_us(), start_time) / 1000
 		print('### show {} chars: {} ms, avg: {} ms'.format(len(chars), diff_time, diff_time / len(chars)))
@@ -107,18 +110,19 @@ class FontLibTest(object):
 		start_time = ticks_us()
 		buffer_dict = self.__fontlib.get_characters(chars)
 		diff_time = ticks_diff(ticks_us(), start_time) / 1000
-		print('### get {} chars: {} ms, avg: {} ms'.format(len(chars), diff_time, diff_time / len(chars)))
+		print('###  get {} chars: {} ms, avg: {} ms'.format(len(chars), diff_time, diff_time / len(chars)))
 
 		x = y = 0
 		width = height = self.__fontlib.font_height
 
+		start_time = ticks_us()
 		for char in chars:
 			if ord(char) == 10:
 				x = 0
 				y += height
 				continue
 
-			buffer = buffer_dict[ord(char)]
+			buffer = memoryview(buffer_dict[ord(char)])
 
 			if x > ((self.__oled_width // width - 1) * width):
 				x = 0
@@ -126,15 +130,17 @@ class FontLibTest(object):
 			
 			if y > ((self.__oled_height // height - 1) * height):
 				self.__oled.show()
-				sleep(3)
 				self.__oled.fill(0)
-				self.__oled.show()
+				sleep(3)
 				x = y = 0
 
-			self.__show(buffer, width, height, x, y, self.__buffer_format, False)
+			self.__fill_buffer(buffer, x, y, self.__buffer_format)
 			x += width
 
 		self.__oled.show()
+
+		diff_time = ticks_diff(ticks_us(), start_time) / 1000
+		print('### show {} chars: {} ms, avg: {} ms'.format(len(chars), diff_time, diff_time / len(chars)))
 
 	def __get_format(self):
 		format = framebuf.MONO_VLSB
@@ -144,10 +150,10 @@ class FontLibTest(object):
 
 		return format
 
-	def __show(self, buffer, width, height, x, y, format, show=True):
-		fb = framebuf.FrameBuffer(bytearray(buffer), width, height, format)
-		oled.blit(fb, x, y)
-		if show: oled.show()
+	def __fill_buffer(self, buffer, x, y, format):
+		if isinstance(buffer, (bytes, memoryview)):
+			buffer = framebuf.FrameBuffer(bytearray(buffer), self.__font_width, self.__font_height, format)
+		oled.blit(buffer, x, y)
 
 
 chars =\
@@ -181,5 +187,5 @@ if __name__ == '__main__':
 		runner.load_font('client/combined_vlsb.bin')
 
 		# runner.run_test1(chars) # 一次性读取所有字符数据然后逐个显示
-		runner.run_test2(chars) # 一次读取并显示一个字符数据
-		# runner.run_test3(chars) # 一次读取一屏并显示
+		# runner.run_test2(chars) # 一次读取并显示一个字符数据
+		runner.run_test3(chars) # 一次读取一屏并显示
