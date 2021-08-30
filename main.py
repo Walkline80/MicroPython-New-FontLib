@@ -156,6 +156,51 @@ class FontLibTest(object):
 		oled.blit(buffer, x, y)
 
 
+class FontLibTest2(object):
+	def __init__(self, oled=None):
+		self.__oled = oled
+		self.__oled_width = None
+		self.__oled_height = None
+
+		if self.__oled:
+			self.__oled_width = self.__oled.width
+			self.__oled_height = self.__oled.height
+
+	def run_test(self):
+		if self.__oled is None or chars is None:
+			return
+
+		welcome = FontLib('/client/welcome.bin')
+		iconic = FontLib('/client/fonts/open-iconic.bin')
+		welcome.info()
+		iconic.info()
+
+		welcome_buffer_dict = welcome.get_characters('欢迎')
+		iconic_buffer_dict = iconic.get_characters('\ue056\ue057')
+
+		width = height = welcome.font_height
+		x = int((self.__oled_width - width * 4) / 2)
+		y = int((self.__oled_height - height) / 2)
+
+		buffer_list = [
+			memoryview(iconic_buffer_dict[ord('\ue056')]),
+			memoryview(welcome_buffer_dict[ord('欢')]),
+			memoryview(welcome_buffer_dict[ord('迎')]),
+			memoryview(iconic_buffer_dict[ord('\ue057')])
+		]
+
+		for buffer in buffer_list:
+			self.__fill_buffer(buffer, width, height, x, y, framebuf.MONO_VLSB)
+			x += width
+
+		self.__oled.show()
+
+	def __fill_buffer(self, buffer, width, height, x, y, format):
+		if isinstance(buffer, (bytes, memoryview)):
+			buffer = framebuf.FrameBuffer(bytearray(buffer), width, height, format)
+		oled.blit(buffer, x, y)
+
+
 chars =\
 '''　　清晨4:50，老刀穿过熙熙攘攘的步行街，去找彭蠡。
 　　从垃圾站下班之后，老刀回家洗了个澡，换了衣服。白色衬衫和褐色裤子，这是他唯一一套体面衣服，衬衫袖口磨了边，他把袖子卷到胳膊肘。老刀四十八岁，没结婚，已经过了注意外表的年龄，又没人照顾起居，这一套衣服留着穿了很多年，每次穿一天，回家就脱了叠上。他在垃圾站上班，没必要穿得体面，偶尔参加谁家小孩的婚礼，才拿出来穿在身上。这一次他不想脏兮兮地见陌生人。他在垃圾站连续工作了五小时，很担心身上会有味道。'''
@@ -179,13 +224,24 @@ if __name__ == '__main__':
 	if slave_list:
 		oled = SSD1306_I2C(128, 64, i2c)
 
-		runner = FontLibTest(oled)
+		# runner = FontLibTest(oled)
 		# runner.load_font('client/combined.bin')
 		# runner.load_font('client/customize.bin')
 		# runner.load_font('client/combined_hmsb.bin')
 		# runner.load_font('client/customize_hmsb.bin')
-		runner.load_font('client/combined_vlsb.bin')
+		# runner.load_font('client/combined_vlsb.bin')
 
 		# runner.run_test1(chars) # 一次性读取所有字符数据然后逐个显示
 		# runner.run_test2(chars) # 一次读取并显示一个字符数据
-		runner.run_test3(chars) # 一次读取一屏并显示
+		# runner.run_test3(chars) # 一次读取一屏并显示
+
+
+		# 要测试 FontLibTest2 的代码，需要生成一个新字库
+		#
+		# $ cd client
+		# $ echo 欢迎>> input.txt
+		# $ FontMaker_Cli.exe -f 幼圆 --input input.txt -o welcome.bin
+		#
+		# 将生成的字库和 fonts/open-iconic.bin 一起上传到开发板
+		runner = FontLibTest2(oled)
+		runner.run_test()
