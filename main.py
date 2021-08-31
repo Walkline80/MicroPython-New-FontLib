@@ -231,11 +231,6 @@ class FontLibTest3(object):
 		self.__load_all = load_all
 
 		self.__setup()
-
-		if self.__load_all:
-			self.__buffer_dict = self.__fontlib.get_characters(self.__chars) if self.__load_all else {}
-			print('get all chars: ', len(self.__buffer_dict))
-
 		self.__fill_page(2)
 
 		self.__x = self.__y = 0
@@ -267,6 +262,7 @@ class FontLibTest3(object):
 		self.__fb_temp = framebuf.FrameBuffer(bytearray(self.__buffer_size), self.__oled_width, self.__oled_height, framebuf.MONO_VLSB)
 
 		self.__scroll_timer = Timer(1)
+		self.__buffer_dict = self.__fontlib.get_characters(self.__chars) if self.__load_all else {}
 
 		self.__need_next_page = False
 		self.__page_prepared = False
@@ -279,42 +275,40 @@ class FontLibTest3(object):
 
 	def __fill_page(self, num=1):
 		while num:
-			col = 0
-			if not self.__load_all:
-				self.__buffer_dict = self.__fontlib.get_characters(self.__chars[self.__current_char_index:self.__current_char_index + self.__chars_per_page])
+			x = y = col = 0
+			current_page_chars = self.__chars[self.__current_char_index:self.__current_char_index + self.__chars_per_page]
 
-			for char in self.__chars[self.__current_char_index:self.__current_char_index + self.__chars_per_page]:
+			if not self.__load_all:
+				self.__buffer_dict = self.__fontlib.get_characters(current_page_chars)
+
+			for char in current_page_chars:
 				if ord(char) == 10:
-					self.__x = 0
-					self.__y += self.__font_height
+					x = 0
+					y += self.__font_height
 					col += 1
 					self.__current_char_index += 1
 					continue
 
-				if self.__x > ((self.__oled_width // self.__font_width - 1) * self.__font_width):
-					self.__x = 0
-					self.__y += self.__font_height
+				if x > ((self.__oled_width // self.__font_width - 1) * self.__font_width):
+					x = 0
+					y += self.__font_height
 					col += 1
 
 				if col >= self.__chars_per_col:
 					break
 
 				# print(char, end='')
-				
-				buffer = memoryview(self.__buffer_dict[ord(char)])
-				buffer = self.__fill_buffer(buffer)
-				self.__fb_foreground.blit(buffer, self.__x, self.__y)
-				self.__x += self.__font_width
+
+				buffer = self.__fill_buffer(memoryview(self.__buffer_dict[ord(char)]))
+				self.__fb_foreground.blit(buffer, x, y)
+				x += self.__font_width
 				self.__current_char_index += 1
+				gc.collect()
 
 			num -= 1
 			self.__current_page += 1
 
 			gc.collect()
-			# print('\npage: ', self.__current_page, ' filled')
-
-		# self.__page_prepared = True
-		# self.__y = 0
 
 	def __scroll_cb(self, timer):
 		if self.__current_page > self.__total_pages:
@@ -325,17 +319,15 @@ class FontLibTest3(object):
 			if not self.__page_prepared:
 				return
 
-			self.__x = 0
-			self.__y -= 1
 			self.__fb_temp.blit(self.__fb_foreground, 0, 0)
 			self.__fb_foreground.fill(0)
 			self.__fb_foreground.blit(self.__fb_temp, 0, 0)
-			self.__fb_foreground.blit(self.__fb_background, 0, self.__y)
+			self.__fb_foreground.blit(self.__fb_background, 0, self.__oled_height)
+
 			self.__need_next_page = True
 			self.__page_prepared = False
-			# self.__fill_page()
-			self.__y = 0
-			return
+			self.__x = self.__y = 0
+			# return
 
 		self.__fb_foreground.scroll(0, self.__scroll_speed * -1)
 		self.__oled.blit(self.__fb_foreground, 0, 0)
@@ -348,11 +340,14 @@ class FontLibTest3(object):
 		while self.__current_page <= self.__total_pages:
 			if self.__need_next_page:
 				col = x = y = 0
+				current_page_chars = self.__chars[self.__current_char_index:self.__current_char_index + self.__chars_per_page]
+
 				if not self.__load_all:
-					self.__buffer_dict = self.__fontlib.get_characters(self.__chars[self.__current_char_index:self.__current_char_index + self.__chars_per_page])
+					self.__buffer_dict = self.__fontlib.get_characters(current_page_chars)
 
 				self.__fb_background.fill(0)
-				for char in self.__chars[self.__current_char_index:self.__current_char_index + self.__chars_per_page]:
+
+				for char in current_page_chars:
 					if ord(char) == 10:
 						x = 0
 						y += self.__font_height
@@ -369,15 +364,14 @@ class FontLibTest3(object):
 						break
 
 					# print(char, end='')
-					
-					buffer = memoryview(self.__buffer_dict[ord(char)])
-					buffer = self.__fill_buffer(buffer)
+
+					buffer = self.__fill_buffer(memoryview(self.__buffer_dict[ord(char)]))
 					self.__fb_background.blit(buffer, x, y)
 					x += self.__font_width
 					self.__current_char_index += 1
+					gc.collect()
 
 				self.__current_page += 1
-
 				gc.collect()
 				# print('\npage: ', self.__current_page, ' filled')
 
