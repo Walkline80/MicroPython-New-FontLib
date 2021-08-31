@@ -8,6 +8,8 @@ from machine import I2C, Pin, Timer
 from drivers.ssd1306 import SSD1306_I2C
 import framebuf
 from libs.fontlib import FontLib
+import gc
+import _thread
 
 
 class FontLibTest(object):
@@ -223,29 +225,15 @@ class FontLibTest3(object):
 		if self.__oled is None or chars is None:
 			return
 
-		self.__chars = chars.replace('\t', '').replace('\r\n', '\n')
-		self.__newline_count = self.__chars.count('\n')
-		self.__chars_count = len(self.__chars)
-		self.__chars_per_row = int(self.__oled_width / self.__fontlib.font_height)
-		self.__chars_per_col = int(self.__oled_height / self.__fontlib.font_height)
-		self.__chars_per_page = self.__chars_per_row * self.__chars_per_col
-		self.__total_rows = int(self.__chars_count / self.__chars_per_row) + self.__newline_count
-		self.__total_pages = int(self.__total_rows / self.__chars_per_col)
-		self.__page_prepared = False
-		self.__current_page = 0
-		self.__buffer_size = self.__oled_width // 8 * self.__oled_height
-		self.__fb_foreground = framebuf.FrameBuffer(bytearray(self.__buffer_size * 2), self.__oled_width, self.__oled_height * 2, framebuf.MONO_VLSB)
-		self.__fb_background = framebuf.FrameBuffer(bytearray(self.__buffer_size), self.__oled_width, self.__oled_height, framebuf.MONO_VLSB)
-		self.__scroll_timer = Timer(1)
-		self.__x = self.__y = 0
 		self.__scroll_speed = scroll_height
 		self.__scroll_interval = interval
-		self.__current_page = 0
-		self.__current_char_index = 0
+		self.__chars = chars.replace('\t', '').replace('\r\n', '\n')
 		self.__load_all = load_all
 
+		self.__setup()
+
 		if self.__load_all:
-			self.__buffer_dict = {} if self.__method else self.__fontlib.get_characters(self.__chars)
+			self.__buffer_dict = self.__fontlib.get_characters(self.__chars) if self.__load_all else {}
 			print('get all chars: ', len(self.__buffer_dict))
 
 		self.__fill_page(2)
@@ -254,6 +242,9 @@ class FontLibTest3(object):
 		self.__oled.blit(self.__fb_foreground, self.__x, self.__y)
 		self.__oled.show()
 
+		self.__need_next_page = True
+		_thread.start_new_thread(self.__fill_page_thread, ())
+
 		sleep(1)
 
 		self.__scroll_timer.init(
@@ -261,6 +252,27 @@ class FontLibTest3(object):
 			period=self.__scroll_interval,
 			callback=self.__scroll_cb
 		)
+
+	def __setup(self):
+		self.__chars_per_row = int(self.__oled_width / self.__fontlib.font_height)
+		self.__chars_per_col = int(self.__oled_height / self.__fontlib.font_height)
+		self.__chars_per_page = self.__chars_per_row * self.__chars_per_col
+
+		self.__total_rows = int(len(self.__chars) / self.__chars_per_row) + self.__chars.count('\n')
+		self.__total_pages = int(self.__total_rows / self.__chars_per_col)
+
+		self.__buffer_size = self.__oled_width // 8 * self.__oled_height
+		self.__fb_foreground = framebuf.FrameBuffer(bytearray(self.__buffer_size * 2), self.__oled_width, self.__oled_height * 2, framebuf.MONO_VLSB)
+		self.__fb_background = framebuf.FrameBuffer(bytearray(self.__buffer_size), self.__oled_width, self.__oled_height, framebuf.MONO_VLSB)
+		self.__fb_temp = framebuf.FrameBuffer(bytearray(self.__buffer_size), self.__oled_width, self.__oled_height, framebuf.MONO_VLSB)
+
+		self.__scroll_timer = Timer(1)
+
+		self.__need_next_page = False
+		self.__page_prepared = False
+		self.__current_page = 0
+		self.__x = self.__y = 0
+		self.__current_char_index = 0
 
 	def __fill_buffer(self, buffer):
 		return framebuf.FrameBuffer(bytearray(buffer), self.__font_width, self.__font_height, framebuf.MONO_VLSB)
@@ -297,33 +309,84 @@ class FontLibTest3(object):
 
 			num -= 1
 			self.__current_page += 1
+
+			gc.collect()
 			# print('\npage: ', self.__current_page, ' filled')
 
-		self.__page_prepared = True
-		self.__y = 0
+		# self.__page_prepared = True
+		# self.__y = 0
 
 	def __scroll_cb(self, timer):
 		if self.__current_page > self.__total_pages:
 			self.__scroll_timer.deinit()
 			return
 
-		if not self.__page_prepared:
-			return
-
 		if self.__y >= self.__oled_height:
+			if not self.__page_prepared:
+				return
+
 			self.__x = 0
 			self.__y -= 1
-			self.__page_prepared = False
-			self.__fb_background.blit(self.__fb_foreground, 0, 0)
+			self.__fb_temp.blit(self.__fb_foreground, 0, 0)
 			self.__fb_foreground.fill(0)
-			self.__fb_foreground.blit(self.__fb_background, 0, 0)
-			self.__fill_page()
+			self.__fb_foreground.blit(self.__fb_temp, 0, 0)
+			self.__fb_foreground.blit(self.__fb_background, 0, self.__y)
+			self.__need_next_page = True
+			self.__page_prepared = False
+			# self.__fill_page()
+			self.__y = 0
 			return
 
 		self.__fb_foreground.scroll(0, self.__scroll_speed * -1)
 		self.__oled.blit(self.__fb_foreground, 0, 0)
 		self.__oled.show()
 		self.__y += self.__scroll_speed
+
+		gc.collect()
+
+	def __fill_page_thread(self):
+		while self.__current_page <= self.__total_pages:
+			if self.__need_next_page:
+				col = x = y = 0
+				if not self.__load_all:
+					self.__buffer_dict = self.__fontlib.get_characters(self.__chars[self.__current_char_index:self.__current_char_index + self.__chars_per_page])
+
+				self.__fb_background.fill(0)
+				for char in self.__chars[self.__current_char_index:self.__current_char_index + self.__chars_per_page]:
+					if ord(char) == 10:
+						x = 0
+						y += self.__font_height
+						col += 1
+						self.__current_char_index += 1
+						continue
+
+					if x > ((self.__oled_width // self.__font_width - 1) * self.__font_width):
+						x = 0
+						y += self.__font_height
+						col += 1
+
+					if col >= self.__chars_per_col:
+						break
+
+					# print(char, end='')
+					
+					buffer = memoryview(self.__buffer_dict[ord(char)])
+					buffer = self.__fill_buffer(buffer)
+					self.__fb_background.blit(buffer, x, y)
+					x += self.__font_width
+					self.__current_char_index += 1
+
+				self.__current_page += 1
+
+				gc.collect()
+				# print('\npage: ', self.__current_page, ' filled')
+
+				self.__page_prepared = True
+				self.__need_next_page = False
+				# self.__y = 0
+			else:
+				sleep(0.02)
+		print('thread exit')
 
 
 chars =\
@@ -383,7 +446,7 @@ if __name__ == '__main__':
 
 		runner = FontLibTest3(oled)
 		runner.load_font('client/chushibiao.bin')
-		runner.run_test(scroll_height=1, interval=20, chars=chars3) # 每次滚动 1 像素
+		runner.run_test(scroll_height=1, interval=80, chars=chars3) # 每次滚动 1 像素
 
 		# 读取所有字符数据，每次滚动 1 行
 		# runner.load_font('client/combined_vlsb.bin')
