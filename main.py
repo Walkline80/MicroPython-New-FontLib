@@ -219,9 +219,10 @@ class FontLibTest3(object):
 
 		self.__font_width = self.__fontlib.font_height
 		self.__font_height = self.__fontlib.font_height
+		gc.collect()
 		# self.__buffer_format = self.__get_format()
 
-	def run_test(self, scroll_height=1, interval=20, chars=None, load_all=False):
+	def run_test(self, scroll_height=1, interval=20, chars=None, load_all=False, thread=False):
 		if self.__oled is None or chars is None:
 			return
 
@@ -229,24 +230,31 @@ class FontLibTest3(object):
 		self.__scroll_interval = interval
 		self.__chars = chars.replace('\t', '').replace('\r\n', '\n')
 		self.__load_all = load_all
+		self.__thread = thread
 
 		self.__setup()
-		self.__fill_page(2)
+		self.__fill_page(2, True)
 
-		self.__x = self.__y = 0
 		self.__oled.blit(self.__fb_foreground, self.__x, self.__y)
 		self.__oled.show()
 
-		self.__need_next_page = True
-		_thread.start_new_thread(self.__fill_page_thread, ())
+		self.__page_prepared = False
+		if self.__thread:
+			self.__need_next_page = True
+			_thread.start_new_thread(self.__fill_page_thread, ())
+		else:
+			self.__fill_page()
 
 		sleep(1)
 
-		self.__scroll_timer.init(
-			mode=Timer.PERIODIC,
-			period=self.__scroll_interval,
-			callback=self.__scroll_cb
-		)
+		if self.__thread:
+			_thread.start_new_thread(self.__scroll_thread, ())
+		else:
+			self.__scroll_timer.init(
+				mode=Timer.PERIODIC,
+				period=self.__scroll_interval,
+				callback=self.__scroll_cb
+			)
 
 	def __setup(self):
 		self.__chars_per_row = int(self.__oled_width / self.__fontlib.font_height)
@@ -273,13 +281,16 @@ class FontLibTest3(object):
 	def __fill_buffer(self, buffer):
 		return framebuf.FrameBuffer(bytearray(buffer), self.__font_width, self.__font_height, framebuf.MONO_VLSB)
 
-	def __fill_page(self, num=1):
+	def __fill_page(self, num=1, first=False):
+		x = y = 0
 		while num:
-			x = y = col = 0
+			col = 0
 			current_page_chars = self.__chars[self.__current_char_index:self.__current_char_index + self.__chars_per_page]
 
 			if not self.__load_all:
 				self.__buffer_dict = self.__fontlib.get_characters(current_page_chars)
+
+			self.__fb_background.fill(0)
 
 			for char in current_page_chars:
 				if ord(char) == 10:
@@ -300,15 +311,15 @@ class FontLibTest3(object):
 				# print(char, end='')
 
 				buffer = self.__fill_buffer(memoryview(self.__buffer_dict[ord(char)]))
-				self.__fb_foreground.blit(buffer, x, y)
+				self.__fb_foreground.blit(buffer, x, y) if first else self.__fb_background.blit(buffer, x, y)
 				x += self.__font_width
 				self.__current_char_index += 1
 				gc.collect()
 
 			num -= 1
 			self.__current_page += 1
-
 			gc.collect()
+		self.__page_prepared = True
 
 	def __scroll_cb(self, timer):
 		if self.__current_page > self.__total_pages:
@@ -319,26 +330,55 @@ class FontLibTest3(object):
 			if not self.__page_prepared:
 				return
 
-			self.__fb_temp.blit(self.__fb_foreground, 0, 0)
-			self.__fb_foreground.fill(0)
-			self.__fb_foreground.blit(self.__fb_temp, 0, 0)
+			# self.__fb_temp.blit(self.__fb_foreground, 0, 0)
+			# self.__fb_foreground.fill(0)
+			# self.__fb_foreground.blit(self.__fb_temp, 0, 0)
 			self.__fb_foreground.blit(self.__fb_background, 0, self.__oled_height)
+			# print('page ', self.__current_page, ' used')
 
-			self.__need_next_page = True
 			self.__page_prepared = False
+			self.__fill_page()
 			self.__x = self.__y = 0
-			# return
+			gc.collect()
 
 		self.__fb_foreground.scroll(0, self.__scroll_speed * -1)
 		self.__oled.blit(self.__fb_foreground, 0, 0)
 		self.__oled.show()
 		self.__y += self.__scroll_speed
-
 		gc.collect()
 
-	def __fill_page_thread(self):
+	def __scroll_thread(self):
 		while self.__current_page <= self.__total_pages:
+			if self.__y >= self.__oled_height:
+				if not self.__page_prepared:
+					print('not')
+					return
+
+				# self.__fb_temp.blit(self.__fb_foreground, 0, 0)
+				# self.__fb_foreground.fill(0)
+				# self.__fb_foreground.blit(self.__fb_temp, 0, 0)
+				self.__fb_foreground.blit(self.__fb_background, 0, self.__oled_height)
+				# print('page ', self.__current_page, ' used')
+
+				self.__page_prepared = False
+				self.__need_next_page = True
+				self.__x = 0
+				self.__y = 0
+				self.__current_page += 1
+				gc.collect()
+
+			self.__fb_foreground.scroll(0, self.__scroll_speed * -1)
+			self.__oled.blit(self.__fb_foreground, 0, 0)
+			self.__oled.show()
+			self.__y += self.__scroll_speed
+
+			# gc.collect()
+			sleep(self.__scroll_interval / 1000)
+
+	def __fill_page_thread(self):
+		while self.__current_page < self.__total_pages:
 			if self.__need_next_page:
+				# print('filling page ', self.__current_page)
 				col = x = y = 0
 				current_page_chars = self.__chars[self.__current_char_index:self.__current_char_index + self.__chars_per_page]
 
@@ -371,15 +411,12 @@ class FontLibTest3(object):
 					self.__current_char_index += 1
 					gc.collect()
 
-				self.__current_page += 1
 				gc.collect()
 				# print('\npage: ', self.__current_page, ' filled')
 
 				self.__page_prepared = True
 				self.__need_next_page = False
-				# self.__y = 0
-			else:
-				sleep(0.02)
+
 		print('thread exit')
 
 
@@ -408,6 +445,7 @@ chars3 =\
 　　臣本布衣，躬耕于南阳，苟全性命于乱世，不求闻达于诸侯。先帝不以臣卑鄙，猥自枉屈，三顾臣于草庐之中，咨臣以当世之事，由是感激，遂许先帝以驱驰。后值倾覆，受任于败军之际，奉命于危难之间：尔来二十有一年矣。先帝知臣谨慎，故临崩寄臣以大事也。受命以来，夙夜忧叹，恐托付不效，以伤先帝之明；故五月渡泸，深入不毛。今南方已定，兵甲已足，当奖率三军，北定中原，庶竭驽钝，攘除奸凶，兴复汉室，还于旧都。此臣所以报先帝而忠陛下之职分也。至于斟酌损益，进尽忠言，则攸之、祎、允之任也。
 　　愿陛下托臣以讨贼兴复之效，不效，则治臣之罪，以告先帝之灵。若无兴德之言，则责攸之、祎、允等之慢，以彰其咎；陛下亦宜自谋，以咨诹善道，察纳雅言，深追先帝遗诏。臣不胜受恩感激。今当远离，临表涕零，不知所言。'''
 
+
 if __name__ == '__main__':
 	i2c = I2C(0, scl=Pin(18), sda=Pin(19))
 	slave_list = i2c.scan()
@@ -415,7 +453,7 @@ if __name__ == '__main__':
 	if slave_list:
 		oled = SSD1306_I2C(128, 64, i2c)
 
-		runner = FontLibTest(oled)
+		# runner = FontLibTest(oled)
 		# runner.load_font('client/combined.bin')
 		# runner.load_font('client/customize.bin')
 		# runner.load_font('client/combined_hmsb.bin')
@@ -439,9 +477,12 @@ if __name__ == '__main__':
 
 
 		runner = FontLibTest3(oled)
-		runner.load_font('client/chushibiao.bin')
-		runner.run_test(scroll_height=1, interval=80, chars=chars3) # 每次滚动 1 像素
+		runner.load_font('client/wenqy_chushibiao.bin')
+		runner.run_test(scroll_height=1, interval=40, chars=chars3, thread=True) # 每次滚动 1 像素
 
-		# 读取所有字符数据，每次滚动 1 行
+		# 读取所有字符数据，每次滚动 1 像素
+		# runner = FontLibTest3(oled)
 		# runner.load_font('client/combined_vlsb.bin')
-		# runner.run_test(runner.__font_height, 500, chars2, True)
+		# runner.run_test(1, 80, chars2, True)
+
+	gc.collect()
