@@ -74,8 +74,10 @@ class FontLib(object):
 	# @micropython.native
 	def __get_character_unicode_buffer(self, font_file, unicode_set):
 		buffer_list = {}
+		chunk_size = const(1000)
 
 		for unicode in unicode_set:
+			font_file.seek(0)
 			if self.__is_ascii(unicode):
 				char_offset = self.__header.ascii_start + (unicode - FontLib.ASCII_START) * self.__header.data_size
 			elif self.__is_gb2312(unicode):
@@ -94,10 +96,11 @@ class FontLib(object):
 						else:
 							return -1
 
-				for offset in range(self.__header.index_table_address, self.__header.ascii_start, 1000):
-					font_file.seek(offset)
+				font_file.read(self.__header.index_table_address)
+				for offset in range(self.__header.index_table_address, self.__header.ascii_start, chunk_size):
+					# font_file.seek(offset)
 
-					char_index_offset = __seek(font_file.read(1000), gb2312_index)
+					char_index_offset = __seek(font_file.read(chunk_size), gb2312_index)
 					if char_index_offset >= 0:
 						char_index_offset += offset
 						break
@@ -105,12 +108,16 @@ class FontLib(object):
 					buffer_list[unicode] = memoryview(self.__placeholder_buffer)
 					continue
 
-				char_offset = self.__header.gb2312_start + (char_index_offset - self.__header.index_table_address) / 2 * self.__header.data_size
+				char_offset = int(self.__header.gb2312_start + (char_index_offset - self.__header.index_table_address) / 2 * self.__header.data_size))
 			else:
 				buffer_list[unicode] = memoryview(self.__placeholder_buffer)
 				continue
 
-			font_file.seek(int(char_offset))
+			for _ in range(0, char_offset - font_file.tell() - chunk_size, chunk_size):
+				font_file.read(chunk_size)
+			font_file.read(char_offset - font_file.tell())
+			# font_file.seek(char_offset)
+
 			buffer_list[unicode] = memoryview(font_file.read(self.__header.data_size))
 
 		gc.collect()
