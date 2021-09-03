@@ -104,6 +104,7 @@ class FontLib(object):
 
 			return seeked_count == len(targets)
 
+		gc.disable()
 		for unicode in unicode_set:
 			if unicode in (9, 10, 13): continue
 			if self.__is_ascii(unicode):
@@ -119,6 +120,7 @@ class FontLib(object):
 		for ascii in ascii_list:
 			font_file.seek(ascii[1])
 			buffer_list.append([ascii[0], memoryview(font_file.read(self.__header.data_size))])
+		gc.enable()
 
 		if is_placeholder:
 			return buffer_list
@@ -134,6 +136,7 @@ class FontLib(object):
 			else:
 				__seek(self.__header.ascii_start - offset, font_file.read(chunk_size), gb2312_list)
 
+		gc.disable()
 		for gb2312 in gb2312_list:
 			if gb2312[2] is None:
 				buffer_list.append([gb2312[0], memoryview(self.__placeholder_buffer)])
@@ -142,8 +145,8 @@ class FontLib(object):
 
 				font_file.seek(char_offset)
 				buffer_list.append([gb2312[0], memoryview(font_file.read(self.__header.data_size))])
-
-			gc.collect()
+		gc.enable()
+			# gc.collect()
 
 		del gb2312_list
 		return buffer_list
@@ -158,7 +161,7 @@ class FontLib(object):
 				for char in self.__get_character_unicode_buffer(font_file, unicode_list[count * chunk:count * chunk + chunk]):
 					result[char[0]] = char[1]
 
-		gc.collect()
+		# gc.collect()
 		return result
 
 	@property
