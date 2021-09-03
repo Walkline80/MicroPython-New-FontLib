@@ -40,3 +40,118 @@ HZK Info: client/customize_hmsb.bin
    byte order : MSB
    characters : 1868
 ### get 227 chars: 1239.848 ms, avg: 5.461885 ms
+
+
+
+
+
+
+新方法，一次打开字库文件读取全部字模数据，使用read代替seek
+__get_character_unicode_buffer() runtime: 32.91 ms
+### load font file: 61.217 ms
+HZK Info: //client//combined.bin
+    file size : 500024
+  font height : 18
+    data size : 54
+    scan mode : Vertical
+   byte order : LSB
+   characters : 8932
+
+__get_character_unicode_buffer() runtime: 37584.83 ms
+###  get 240 chars: 38228.77 ms, avg: 159.2866 ms
+
+
+新方法，一次打开字库文件读取全部字模数据，使用seek
+__get_character_unicode_buffer() runtime: 2.773 ms
+### load font file: 30.97 ms
+HZK Info: //client//combined.bin
+    file size : 500024
+  font height : 18
+    data size : 54
+    scan mode : Vertical
+   byte order : LSB
+   characters : 8932
+
+__get_character_unicode_buffer() runtime: 917.797 ms
+###  get 240 chars: 1561.768 ms, avg: 6.507367 ms
+和
+__get_character_unicode_buffer() runtime: 2.726 ms
+### load font file: 26.22 ms
+HZK Info: //client//combined.bin
+    file size : 500024
+  font height : 18
+    data size : 54
+    scan mode : Vertical
+   byte order : LSB
+   characters : 8932
+
+Traceback (most recent call last):
+  File "<stdin>", line 387, in <module>
+  File "<stdin>", line 304, in run_test
+  File "<stdin>", line 178, in get_characters
+  File "<stdin>", line 15, in wrapper
+MemoryError: memory allocation failed, allocating 55 bytes
+767 chars
+和
+__get_character_unicode_buffer() runtime: 2.726 ms
+### load font file: 26.17 ms
+HZK Info: //client//combined.bin
+    file size : 500024
+  font height : 18
+    data size : 54
+    scan mode : Vertical
+   byte order : LSB
+   characters : 8932
+
+__get_character_unicode_buffer() runtime: 1134.455 ms
+###  get 227 chars: 1867.552 ms, avg: 8.227101 ms
+
+
+
+
+原方法，逐字读取字模数据
+__get_character_unicode_buffer() runtime: 4.13 ms
+### load font file: 27.516 ms
+HZK Info: //client//combined.bin
+    file size : 500024
+  font height : 18
+    data size : 54
+    scan mode : Vertical
+   byte order : LSB
+   characters : 8932
+
+__get_character_unicode_buffer() runtime: 2912.698 ms
+###  get 227 chars: 3643.97 ms, avg: 16.05273 ms
+和
+__get_character_unicode_buffer() runtime: 4.132 ms
+### load font file: 27.536 ms
+HZK Info: //client//combined.bin
+    file size : 500024
+  font height : 18
+    data size : 54
+    scan mode : Vertical
+   byte order : LSB
+   characters : 8932
+
+__get_character_unicode_buffer() runtime: 2504.442 ms
+###  get 240 chars: 3143.604 ms, avg: 13.09835 ms
+和
+__get_character_unicode_buffer() runtime: 4.181 ms
+### load font file: 27.623 ms
+HZK Info: //client//combined.bin
+    file size : 500024
+  font height : 18
+    data size : 54
+    scan mode : Vertical
+   byte order : LSB
+   characters : 8932
+
+Traceback (most recent call last):
+  File "<stdin>", line 365, in <module>
+  File "<stdin>", line 282, in run_test
+  File "<stdin>", line 155, in get_characters
+  File "<stdin>", line 15, in wrapper
+  File "<stdin>", line 143, in __get_character_unicode_buffer
+MemoryError: memory allocation failed, allocating 3112 bytes
+
+

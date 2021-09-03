@@ -82,7 +82,7 @@ class FontLib(object):
 
 		with open(self.__font_filename, 'rb') as font_file:
 			self.__header = FontLibHeader(memoryview(font_file.read(FontLibHeader.LENGTH)))
-			self.__placeholder_buffer = self.__get_character_unicode_buffer(font_file, {ord('?')})[ord('?')]
+			self.__placeholder_buffer = self.__get_character_unicode_buffer(font_file, {ord('?')}, True)[0][1]
 
 		gc.collect()
 
@@ -92,58 +92,91 @@ class FontLib(object):
 	def __is_gb2312(self, char_code):
 		return 0x80 <= char_code <= 0xffef
 
-	def __get_character_unicode_buffer(self, font_file, unicode_set):
-		buffer_list = {}
+	def __get_character_unicode_buffer(self, font_file, unicode_set, is_placeholder=False):
+		buffer_list = []
+		ascii_list = []
+		gb2312_list = []
+		chunk_size = 1000
+
+		def __seek(offset, data, targets):
+			# target:
+			# 	0: unicode
+			#	1: little endian bytes
+			#	2: charest index offset
+			seeked_count = 0
+			for target in targets:
+				if target[2] is not None:
+					seeked_count += 1
+					continue
+
+				seek_offset = -1
+				while True:
+					seek_offset = data.find(target[1], seek_offset + 1)
+
+					if seek_offset >= 0:
+						if seek_offset % 2 == 0:
+							target[2] = seek_offset + offset
+							break
+						else:
+							continue
+					else:
+						break
+
+			return seeked_count == len(targets)
 
 		for unicode in unicode_set:
 			if self.__is_ascii(unicode):
 				char_offset = self.__header.ascii_start + (unicode - 0x20) * self.__header.data_size
+				ascii_list.append([unicode, char_offset])
 			elif self.__is_gb2312(unicode):
-				gb2312_index = struct.pack('<H', unicode)
-
-				def __seek(data, target):
-					seek_offset = -1
-					while True:
-						seek_offset = data.find(target, seek_offset + 1)
-
-						if seek_offset >= 0:
-							if seek_offset % 2 == 0:
-								return seek_offset
-							else:
-								continue
-						else:
-							return -1
-
-				for offset in range(self.__header.index_table_address, self.__header.ascii_start, 1000):
-					font_file.seek(offset)
-
-					char_index_offset = __seek(font_file.read(1000), gb2312_index)
-					if char_index_offset >= 0:
-						char_index_offset += offset
-						break
-				else:
-					buffer_list[unicode] = memoryview(self.__placeholder_buffer)
-					continue
-
-				char_offset = self.__header.gb2312_start + (char_index_offset - self.__header.index_table_address) / 2 * self.__header.data_size
+				gb2312_list.append([unicode, struct.pack('<H', unicode), None])
 			else:
-				buffer_list[unicode] = memoryview(self.__placeholder_buffer)
-				continue
+				buffer_list.append([unicode, memoryview(self.__placeholder_buffer)])
 
-			font_file.seek(int(char_offset))
-			buffer_list[unicode] = memoryview(font_file.read(self.__header.data_size))
+		for ascii in ascii_list:
+			font_file.seek(ascii[1])
+			buffer_list.append([ascii[0], memoryview(font_file.read(self.__header.data_size))])
 
-		gc.collect()
+		if is_placeholder:
+			return buffer_list
+
+		if len(gb2312_list):
+			font_file.seek(self.__header.index_table_address)
+			for offset in range(self.__header.index_table_address, self.__header.ascii_start, chunk_size):
+				if __seek(offset, font_file.read(chunk_size), gb2312_list):
+					break
+			else:
+				__seek(self.__header.ascii_start - offset, font_file.read(chunk_size), gb2312_list)
+
+		for gb2312 in gb2312_list:
+			if gb2312[2] is None:
+				buffer_list.append([gb2312[0], memoryview(self.__placeholder_buffer)])
+			else:
+				char_offset = int(self.__header.gb2312_start + (gb2312[2] - self.__header.index_table_address) / 2 * self.__header.data_size)
+
+				font_file.seek(char_offset)
+				buffer_list.append([gb2312[0], memoryview(font_file.read(self.__header.data_size))])
+
+			gc.collect()
+
+		del gb2312_list
 		return buffer_list
 
 	def get_characters(self, characters: str):
+		result = {}
 		with open(self.__font_filename, 'rb') as font_file:
 			unicode_set = set()
 			for char in characters:
 				unicode_set.add(ord(char))
 
-			gc.collect()
-			return self.__get_character_unicode_buffer(font_file, unicode_set)
+			chunk = 30
+			for count in range(0, len(unicode_set) // chunk + 1):
+				# result.append(self.__get_character_unicode_buffer(font_file, list(unicode_set)[count * chunk:count * chunk + chunk]))
+				for char in self.__get_character_unicode_buffer(font_file, list(unicode_set)[count * chunk:count * chunk + chunk]):
+					result[char[0]] = char[1]
+
+		gc.collect()
+		return result
 
 	@property
 	def scan_mode(self):
@@ -294,7 +327,7 @@ def run_test():
 			diff_time = ticks_diff(ticks_us(), start_time) / 1000
 			print('### show {} chars: {} ms, avg: {} ms'.format(len(chars), diff_time, diff_time / len(chars)))
 	else:
-		buffer_dict = fontlib.get_characters('爱我，中华！Hello⒉あβǚㄘＢ⑴■☆')
+		buffer_dict = fontlib.get_characters('\ue900鼽爱我，中华！Hello⒉あβǚㄘＢ⑴■☆')
 		buffer_list = []
 
 		for unicode, buffer in buffer_dict.items():
