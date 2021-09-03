@@ -82,7 +82,7 @@ class FontLib(object):
 
 		with open(self.__font_filename, 'rb') as font_file:
 			self.__header = FontLibHeader(memoryview(font_file.read(FontLibHeader.LENGTH)))
-			self.__placeholder_buffer = self.__get_character_unicode_buffer(font_file, {ord('?')})[ord('?')]
+			self.__placeholder_buffer = self.__get_character_unicode_buffer(font_file, {ord('?')}, True)[0][1]
 
 		gc.collect()
 
@@ -92,8 +92,8 @@ class FontLib(object):
 	def __is_gb2312(self, char_code):
 		return 0x80 <= char_code <= 0xffef
 
-	def __get_character_unicode_buffer(self, font_file, unicode_set):
-		buffer_list = {}
+	def __get_character_unicode_buffer(self, font_file, unicode_set, is_placeholder=False):
+		buffer_list = []
 		ascii_list = []
 		gb2312_list = []
 		chunk_size = 1000
@@ -131,21 +131,17 @@ class FontLib(object):
 			elif self.__is_gb2312(unicode):
 				gb2312_list.append([unicode, struct.pack('<H', unicode), None])
 			else:
-				buffer_list[unicode] = memoryview(self.__placeholder_buffer)
+				buffer_list.append([unicode, memoryview(self.__placeholder_buffer)])
 
 		for ascii in ascii_list:
-			font_file.seek(0)
+			font_file.seek(ascii[1])
+			buffer_list.append([ascii[0], memoryview(font_file.read(self.__header.data_size))])
 
-			for _ in range(0, ascii[1] - font_file.tell() - chunk_size, chunk_size):
-				font_file.read(chunk_size)
-			font_file.read(ascii[1] - font_file.tell())
-
-			buffer_list[ascii[0]] = memoryview(font_file.read(self.__header.data_size))
+		if is_placeholder:
+			return buffer_list
 
 		if len(gb2312_list):
-			font_file.seek(0)
-			font_file.read(self.__header.index_table_address)
-
+			font_file.seek(self.__header.index_table_address)
 			for offset in range(self.__header.index_table_address, self.__header.ascii_start, chunk_size):
 				if __seek(offset, font_file.read(chunk_size), gb2312_list):
 					break
@@ -153,31 +149,34 @@ class FontLib(object):
 				__seek(self.__header.ascii_start - offset, font_file.read(chunk_size), gb2312_list)
 
 		for gb2312 in gb2312_list:
-			font_file.seek(0)
-
 			if gb2312[2] is None:
-				buffer_list[gb2312[0]] = memoryview(self.__placeholder_buffer)
+				buffer_list.append([gb2312[0], memoryview(self.__placeholder_buffer)])
 			else:
 				char_offset = int(self.__header.gb2312_start + (gb2312[2] - self.__header.index_table_address) / 2 * self.__header.data_size)
 
-				for _ in range(0, char_offset - font_file.tell() - chunk_size, chunk_size):
-					font_file.read(chunk_size)
-				font_file.read(char_offset - font_file.tell())
-
-				buffer_list[gb2312[0]] = memoryview(font_file.read(self.__header.data_size))
+				font_file.seek(char_offset)
+				buffer_list.append([gb2312[0], memoryview(font_file.read(self.__header.data_size))])
 
 			gc.collect()
 
+		del gb2312_list
 		return buffer_list
 
 	def get_characters(self, characters: str):
+		result = {}
 		with open(self.__font_filename, 'rb') as font_file:
 			unicode_set = set()
 			for char in characters:
 				unicode_set.add(ord(char))
 
-			gc.collect()
-			return self.__get_character_unicode_buffer(font_file, unicode_set)
+			chunk = 30
+			for count in range(0, len(unicode_set) // chunk + 1):
+				# result.append(self.__get_character_unicode_buffer(font_file, list(unicode_set)[count * chunk:count * chunk + chunk]))
+				for char in self.__get_character_unicode_buffer(font_file, list(unicode_set)[count * chunk:count * chunk + chunk]):
+					result[char[0]] = char[1]
+
+		gc.collect()
+		return result
 
 	@property
 	def scan_mode(self):
