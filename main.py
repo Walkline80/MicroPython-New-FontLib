@@ -27,7 +27,8 @@ class FontLibTest(object):
 	def load_font(self, font_file):
 		start_time = ticks_us()
 		self.__fontlib = FontLib(font_file)
-		print('### load font file: {} ms'.format(ticks_diff(ticks_us(), start_time) / 1000))
+		diff_time = ticks_diff(ticks_us(), start_time) / 1000
+		print('### load font file: {} ms'.format(diff_time))
 		self.__fontlib.info()
 
 		self.__font_width = self.__fontlib.font_height
@@ -155,7 +156,7 @@ class FontLibTest(object):
 	def __fill_buffer(self, buffer, x, y, format):
 		if isinstance(buffer, (bytes, memoryview)):
 			buffer = framebuf.FrameBuffer(bytearray(buffer), self.__font_width, self.__font_height, format)
-		oled.blit(buffer, x, y)
+		self.__oled.blit(buffer, x, y)
 
 
 class FontLibTest2(object):
@@ -219,8 +220,6 @@ class FontLibTest3(object):
 
 		self.__font_width = self.__fontlib.font_height
 		self.__font_height = self.__fontlib.font_height
-		gc.collect()
-		# self.__buffer_format = self.__get_format()
 
 	def run_test(self, scroll_height=1, interval=20, chars=None, load_all=False, thread=False):
 		if self.__oled is None or chars is None:
@@ -235,10 +234,10 @@ class FontLibTest3(object):
 		self.__setup()
 		self.__fill_page(2, True)
 
-		self.__oled.blit(self.__fb_foreground, self.__x, self.__y)
+		self.__oled.blit(self.__fb_foreground, 0, 0)
 		self.__oled.show()
 
-		self.__page_prepared = False
+		self.__page_prepared = True
 		if self.__thread:
 			self.__need_next_page = True
 			_thread.start_new_thread(self.__fill_page_thread, ())
@@ -267,7 +266,7 @@ class FontLibTest3(object):
 		self.__buffer_size = self.__oled_width // 8 * self.__oled_height
 		self.__fb_foreground = framebuf.FrameBuffer(bytearray(self.__buffer_size * 2), self.__oled_width, self.__oled_height * 2, framebuf.MONO_VLSB)
 		self.__fb_background = framebuf.FrameBuffer(bytearray(self.__buffer_size), self.__oled_width, self.__oled_height, framebuf.MONO_VLSB)
-		self.__fb_temp = framebuf.FrameBuffer(bytearray(self.__buffer_size), self.__oled_width, self.__oled_height, framebuf.MONO_VLSB)
+		# self.__fb_temp = framebuf.FrameBuffer(bytearray(self.__buffer_size), self.__oled_width, self.__oled_height, framebuf.MONO_VLSB)
 
 		self.__scroll_timer = Timer(1)
 		self.__buffer_dict = self.__fontlib.get_characters(self.__chars) if self.__load_all else {}
@@ -314,11 +313,9 @@ class FontLibTest3(object):
 				self.__fb_foreground.blit(buffer, x, y) if first else self.__fb_background.blit(buffer, x, y)
 				x += self.__font_width
 				self.__current_char_index += 1
-				gc.collect()
 
 			num -= 1
 			self.__current_page += 1
-			gc.collect()
 		self.__page_prepared = True
 
 	def __scroll_cb(self, timer):
@@ -330,49 +327,37 @@ class FontLibTest3(object):
 			if not self.__page_prepared:
 				return
 
-			# self.__fb_temp.blit(self.__fb_foreground, 0, 0)
-			# self.__fb_foreground.fill(0)
-			# self.__fb_foreground.blit(self.__fb_temp, 0, 0)
 			self.__fb_foreground.blit(self.__fb_background, 0, self.__oled_height)
 			# print('page ', self.__current_page, ' used')
 
 			self.__page_prepared = False
 			self.__fill_page()
 			self.__x = self.__y = 0
-			gc.collect()
 
 		self.__fb_foreground.scroll(0, self.__scroll_speed * -1)
 		self.__oled.blit(self.__fb_foreground, 0, 0)
 		self.__oled.show()
 		self.__y += self.__scroll_speed
-		gc.collect()
 
 	def __scroll_thread(self):
 		while self.__current_page <= self.__total_pages:
 			if self.__y >= self.__oled_height:
 				if not self.__page_prepared:
-					print('not')
 					return
 
-				# self.__fb_temp.blit(self.__fb_foreground, 0, 0)
-				# self.__fb_foreground.fill(0)
-				# self.__fb_foreground.blit(self.__fb_temp, 0, 0)
 				self.__fb_foreground.blit(self.__fb_background, 0, self.__oled_height)
 				# print('page ', self.__current_page, ' used')
 
 				self.__page_prepared = False
 				self.__need_next_page = True
-				self.__x = 0
-				self.__y = 0
+				self.__x = self.__y = 0
 				self.__current_page += 1
-				gc.collect()
 
 			self.__fb_foreground.scroll(0, self.__scroll_speed * -1)
 			self.__oled.blit(self.__fb_foreground, 0, 0)
 			self.__oled.show()
 			self.__y += self.__scroll_speed
 
-			# gc.collect()
 			sleep(self.__scroll_interval / 1000)
 
 	def __fill_page_thread(self):
@@ -409,11 +394,8 @@ class FontLibTest3(object):
 					self.__fb_background.blit(buffer, x, y)
 					x += self.__font_width
 					self.__current_char_index += 1
-					gc.collect()
 
-				gc.collect()
 				# print('\npage: ', self.__current_page, ' filled')
-
 				self.__page_prepared = True
 				self.__need_next_page = False
 
@@ -483,6 +465,6 @@ if __name__ == '__main__':
 		# 读取所有字符数据，每次滚动 1 像素
 		# runner = FontLibTest3(oled)
 		# runner.load_font('client/combined_vlsb.bin')
-		# runner.run_test(1, 80, chars2, True)
+		# runner.run_test(1, 20, chars2, True)
 
 	gc.collect()
