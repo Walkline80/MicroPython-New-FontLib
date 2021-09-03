@@ -151,14 +151,11 @@ class FontLib(object):
 	def get_characters(self, characters: str):
 		result = {}
 		with open(self.__font_filename, 'rb') as font_file:
-			unicode_set = set()
-			for char in characters:
-				unicode_set.add(ord(char))
+			unicode_list = list(set(ord(char) for char in characters))
 
 			chunk = 30
-			for count in range(0, len(unicode_set) // chunk + 1):
-				# result.append(self.__get_character_unicode_buffer(font_file, list(unicode_set)[count * chunk:count * chunk + chunk]))
-				for char in self.__get_character_unicode_buffer(font_file, list(unicode_set)[count * chunk:count * chunk + chunk]):
+			for count in range(0, len(unicode_list) // chunk + 1):
+				for char in self.__get_character_unicode_buffer(font_file, unicode_list[count * chunk:count * chunk + chunk]):
 					result[char[0]] = char[1]
 
 		gc.collect()
