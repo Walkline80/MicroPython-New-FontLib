@@ -160,7 +160,7 @@ class FontLib(object):
 				font_file.seek(char_offset)
 				buffer_list.append([gb2312[0], memoryview(font_file.read(self.__header.data_size))])
 		gc.enable()
-			# gc.collect()
+		gc.collect()
 
 		del gb2312_list
 		return buffer_list
