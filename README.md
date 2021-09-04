@@ -316,6 +316,58 @@ def cal_time(fn):
     return wrapper
 ```
 
+### 关于测速
+
+又增加了一个单独测速的文件`fontlib_test.py`，发现一个现象，虽然知道和缓存有关，但是具体怎么实现的并不了解
+
+这里测速使用了两个方法
+
+* 一次获取所有字符的字模数据
+* 分段获取所有字符的字模数据
+
+单独测试这两种方法，得到的结果如下
+
+```docs
+### method: load all
+### 240 chars, get 111 chars: 1145.765 ms, avg: 10.32221 ms
+```
+
+```docs
+### method separated
+### 0 get 18 chars: 201.403 ms, avg: 11.18906 ms
+...
+### 9 get 22 chars: 169.531 ms, avg: 7.705955 ms
+### 240 chars, get 197 chars: 1760.472 ms, avg: 9.978033 ms
+```
+
+但是同时测试两种方法的结果却是这样的
+
+```docs
+### method: load all
+### 240 chars, get 111 chars: 1145.765 ms, avg: 10.32221 ms
+
+### method separated
+### 0 get 18 chars: 110.468 ms, avg: 6.137111 ms
+...
+### 9 get 22 chars: 125.306 ms, avg: 5.695727 ms
+### 240 chars, get 197 chars: 1170.494 ms, avg: 6.635651 ms
+```
+
+调换顺序的结果也是类似
+
+```docs
+### method separated
+### 0 get 18 chars: 201.403 ms, avg: 11.18906 ms
+...
+### 9 get 22 chars: 169.531 ms, avg: 7.705955 ms
+### 240 chars, get 197 chars: 1760.472 ms, avg: 9.978033 ms
+
+### method: load all
+### 240 chars, get 111 chars: 565.726 ms, avg: 5.096631 ms
+```
+
+结论就是，不管是一次性还是分段，只要提前获取了所有字符的字模数据，下次再获取的时候速度就会快很多，不过显然这种提速并没有实际意义
+
 ### 合作交流
 
 * 联系邮箱：<walkline@163.com>
