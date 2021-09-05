@@ -6,6 +6,7 @@ Gitee: https://gitee.com/walkline/micropython-new-fontlib
 import gc
 import struct
 from micropython import const
+from framebuf import MONO_HLSB, MONO_HMSB, MONO_VLSB
 
 
 class FontLibHeaderException(Exception):
@@ -16,6 +17,10 @@ class FontLibException(Exception):
 
 class FontLibHeader(object):
 	LENGTH = const(24)
+	SCAN_MODE_HORIZONTAL = BYTE_ORDER_LSB = const(0)
+	SCAN_MODE_VERTICAL = BYTE_ORDER_MSB = const(1)
+	SCAN_MODE = {SCAN_MODE_HORIZONTAL: 'Horizontal', SCAN_MODE_VERTICAL: 'Vertical'}
+	BYTE_ORDER = {BYTE_ORDER_LSB: 'LSB', BYTE_ORDER_MSB: 'MSB'}
 
 	# @micropython.native
 	def __init__(self, header_data):
@@ -42,13 +47,14 @@ class FontLibHeader(object):
 			self.index_table_address = FontLibHeader.LENGTH
 		else:
 			self.index_table_address = 0
+		
+		self.format = MONO_VLSB
+		if self.scan_mode == FontLibHeader.SCAN_MODE_HORIZONTAL:
+			self.format = MONO_HMSB if self.byte_order == FontLibHeader.BYTE_ORDER_MSB else MONO_HLSB
 
 
 class FontLib(object):
-	SCAN_MODE_HORIZONTAL = BYTE_ORDER_LSB = const(0)
-	SCAN_MODE_VERTICAL = BYTE_ORDER_MSB = const(1)
-	SCAN_MODE = {SCAN_MODE_HORIZONTAL: 'Horizontal', SCAN_MODE_VERTICAL: 'Vertical'}
-	BYTE_ORDER = {BYTE_ORDER_LSB: 'LSB', BYTE_ORDER_MSB: 'MSB'}
+	FORMAT = {MONO_VLSB: 'MONO_VLSB', MONO_HMSB: 'MONO_HMSB', MONO_HLSB: 'MONO_HLSB'}
 	ASCII_START = const(0x20)
 	ASCII_END = const(0x7f)
 	GB2312_START = const(0x80)
@@ -173,6 +179,10 @@ class FontLib(object):
 		return self.__header.byte_order
 
 	@property
+	def format(self):
+		return self.__header.format
+
+	@property
 	def data_size(self):
 		return self.__header.data_size
 
@@ -194,14 +204,19 @@ HZK Info: {}\n\
     file size : {}\n\
   font height : {}\n\
     data size : {}\n\
-    scan mode : {}\n\
-   byte order : {}\n\
+    scan mode : {} ({})\n\
+   byte order : {} ({})\n\
+       format : {} ({})\n\
    characters : {}\n'.format(
 			  self.__font_filename,
 			  self.file_size,
 			  self.font_height,
 			  self.data_size,
-			  FontLib.SCAN_MODE[self.scan_mode],
-			  FontLib.BYTE_ORDER[self.byte_order],
+			  self.scan_mode,
+			  FontLibHeader.SCAN_MODE[self.scan_mode],
+			  self.byte_order,
+			  FontLibHeader.BYTE_ORDER[self.byte_order],
+			  self.format,
+			  FontLib.FORMAT[self.format],
 			  self.characters
 			))
