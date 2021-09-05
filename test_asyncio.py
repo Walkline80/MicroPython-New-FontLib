@@ -1,3 +1,8 @@
+"""
+The MIT License (MIT)
+Copyright © 2021 Walkline Wang (https://walkline.wang)
+Gitee: https://gitee.com/walkline/micropython-new-fontlib
+"""
 import uasyncio as asyncio
 from utime import sleep_ms
 
