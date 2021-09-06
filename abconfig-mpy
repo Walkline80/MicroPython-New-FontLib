@@ -3,6 +3,7 @@ client/fonts/emoticons21.bin
 client/fonts/open-iconic.bin
 # client/customize.bin
 
+tests/
 drivers/ssd1306.py
 libs/fontlib.mpy
 main.py

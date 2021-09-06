@@ -6,6 +6,7 @@ Gitee: https://gitee.com/walkline/micropython-new-fontlib
 import gc
 import struct
 from micropython import const
+from framebuf import MONO_HLSB, MONO_HMSB, MONO_VLSB
 
 
 class FontLibHeaderException(Exception):
@@ -16,6 +17,10 @@ class FontLibException(Exception):
 
 class FontLibHeader(object):
 	LENGTH = const(24)
+	SCAN_MODE_HORIZONTAL = BYTE_ORDER_LSB = const(0)
+	SCAN_MODE_VERTICAL = BYTE_ORDER_MSB = const(1)
+	SCAN_MODE = {SCAN_MODE_HORIZONTAL: 'Horizontal', SCAN_MODE_VERTICAL: 'Vertical'}
+	BYTE_ORDER = {BYTE_ORDER_LSB: 'LSB', BYTE_ORDER_MSB: 'MSB'}
 
 	# @micropython.native
 	def __init__(self, header_data):
@@ -42,13 +47,14 @@ class FontLibHeader(object):
 			self.index_table_address = FontLibHeader.LENGTH
 		else:
 			self.index_table_address = 0
+		
+		self.format = MONO_VLSB
+		if self.scan_mode == FontLibHeader.SCAN_MODE_HORIZONTAL:
+			self.format = MONO_HMSB if self.byte_order == FontLibHeader.BYTE_ORDER_MSB else MONO_HLSB
 
 
 class FontLib(object):
-	SCAN_MODE_HORIZONTAL = BYTE_ORDER_LSB = const(0)
-	SCAN_MODE_VERTICAL = BYTE_ORDER_MSB = const(1)
-	SCAN_MODE = {SCAN_MODE_HORIZONTAL: 'Horizontal', SCAN_MODE_VERTICAL: 'Vertical'}
-	BYTE_ORDER = {BYTE_ORDER_LSB: 'LSB', BYTE_ORDER_MSB: 'MSB'}
+	FORMAT = {MONO_VLSB: 'MONO_VLSB', MONO_HMSB: 'MONO_HMSB', MONO_HLSB: 'MONO_HLSB'}
 	ASCII_START = const(0x20)
 	ASCII_END = const(0x7f)
 	GB2312_START = const(0x80)
@@ -104,6 +110,7 @@ class FontLib(object):
 
 			return seeked_count == len(targets)
 
+		gc.disable()
 		for unicode in unicode_set:
 			if unicode in (9, 10, 13): continue
 			if self.__is_ascii(unicode):
@@ -119,6 +126,7 @@ class FontLib(object):
 		for ascii in ascii_list:
 			font_file.seek(ascii[1])
 			buffer_list.append([ascii[0], memoryview(font_file.read(self.__header.data_size))])
+		gc.enable()
 
 		if is_placeholder:
 			return buffer_list
@@ -134,6 +142,7 @@ class FontLib(object):
 			else:
 				__seek(self.__header.ascii_start - offset, font_file.read(chunk_size), gb2312_list)
 
+		gc.disable()
 		for gb2312 in gb2312_list:
 			if gb2312[2] is None:
 				buffer_list.append([gb2312[0], memoryview(self.__placeholder_buffer)])
@@ -142,8 +151,8 @@ class FontLib(object):
 
 				font_file.seek(char_offset)
 				buffer_list.append([gb2312[0], memoryview(font_file.read(self.__header.data_size))])
-
-			gc.collect()
+		gc.enable()
+		gc.collect()
 
 		del gb2312_list
 		return buffer_list
@@ -151,17 +160,14 @@ class FontLib(object):
 	def get_characters(self, characters: str):
 		result = {}
 		with open(self.__font_filename, 'rb') as font_file:
-			unicode_set = set()
-			for char in characters:
-				unicode_set.add(ord(char))
+			unicode_list = list(set(ord(char) for char in characters))
 
 			chunk = 30
-			for count in range(0, len(unicode_set) // chunk + 1):
-				# result.append(self.__get_character_unicode_buffer(font_file, list(unicode_set)[count * chunk:count * chunk + chunk]))
-				for char in self.__get_character_unicode_buffer(font_file, list(unicode_set)[count * chunk:count * chunk + chunk]):
+			for count in range(0, len(unicode_list) // chunk + 1):
+				for char in self.__get_character_unicode_buffer(font_file, unicode_list[count * chunk:count * chunk + chunk]):
 					result[char[0]] = char[1]
 
-		gc.collect()
+		# gc.collect()
 		return result
 
 	@property
@@ -171,6 +177,10 @@ class FontLib(object):
 	@property
 	def byte_order(self):
 		return self.__header.byte_order
+
+	@property
+	def format(self):
+		return self.__header.format
 
 	@property
 	def data_size(self):
@@ -194,14 +204,19 @@ HZK Info: {}\n\
     file size : {}\n\
   font height : {}\n\
     data size : {}\n\
-    scan mode : {}\n\
-   byte order : {}\n\
+    scan mode : {} ({})\n\
+   byte order : {} ({})\n\
+       format : {} ({})\n\
    characters : {}\n'.format(
 			  self.__font_filename,
 			  self.file_size,
 			  self.font_height,
 			  self.data_size,
-			  FontLib.SCAN_MODE[self.scan_mode],
-			  FontLib.BYTE_ORDER[self.byte_order],
+			  self.scan_mode,
+			  FontLibHeader.SCAN_MODE[self.scan_mode],
+			  self.byte_order,
+			  FontLibHeader.BYTE_ORDER[self.byte_order],
+			  self.format,
+			  FontLib.FORMAT[self.format],
 			  self.characters
 			))
