@@ -40,7 +40,7 @@
 	    ['open-iconic', range(0xe000, 0xe0de + 1), 'Icons', 'open-iconic.ttf'],
 	    ['emoticons21', range(0x20, 0x3f + 1), 'Emoticons21', 'emoticons21.fon'],
 	    ['icomoon-free', range(0xe900, 0xeaea + 1), 'IcoMoon-Free', 'icomoon-free.ttf']
-]
+	]
 	```
 
 * 运行`cst_generator.py`文件，并根据提示内容进行操作，最终生成`icomoon-free.cst`文件（字符映射表）
