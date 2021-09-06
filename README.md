@@ -29,6 +29,8 @@ $ git submodule update --init --recursive
 
 #### 生成字库文件
 
+> 生成字库文件详细说明参考 [FontMaker Client](https://gitee.com/walkline/fontmaker-client) 项目文档
+
 直接运行
 
 ```bash
