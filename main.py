@@ -76,7 +76,7 @@ if __name__ == '__main__':
 	i2c = I2C(0, scl=Pin(18), sda=Pin(19))
 	slave_list = i2c.scan()
 
-	if not slave_list:
+	if slave_list:
 		oled = SSD1306_I2C(128, 64, i2c)
 
 		font_files = list_bin_files('/')
