@@ -47,6 +47,7 @@ class FontLibTest4(object):
 
 		self.__page_prepared = True
 		self.__need_next_page = True
+
 		self.__loop.create_task(self.__scroll_thread())
 		self.__loop.create_task(self.__fill_page_thread())
 		self.__loop.run_forever()
@@ -63,8 +64,7 @@ class FontLibTest4(object):
 		self.__fb_foreground = framebuf.FrameBuffer(bytearray(self.__buffer_size * 2), self.__oled_width, self.__oled_height * 2, self.__buffer_format)
 		self.__fb_background = framebuf.FrameBuffer(bytearray(self.__buffer_size), self.__oled_width, self.__oled_height, self.__buffer_format)
 
-		self.__buffer_dict = self.__fontlib.get_characters(self.__chars) if self.__load_all else {}
-
+		self.__buffer_dict = {}
 		self.__need_next_page = False
 		self.__page_prepared = False
 		self.__current_page = 0
@@ -131,8 +131,10 @@ class FontLibTest4(object):
 			self.__y += self.__scroll_speed
 
 			sleep(self.__scroll_interval / 1000)
+			await asyncio.sleep_ms(20)
 
 		self.__loop.stop()
+		print('loop scroll exit')
 
 	async def __fill_page_thread(self):
 		while self.__current_page < self.__total_pages:
@@ -167,10 +169,11 @@ class FontLibTest4(object):
 					x += self.__font_width
 					self.__current_char_index += 1
 
-					asyncio.sleep_ms(20)
 				# print('\npage: ', self.__current_page, ' filled')
 				self.__page_prepared = True
 				self.__need_next_page = False
+				await asyncio.sleep_ms(10)
 
-			asyncio.sleep_ms(20)
-		print('thread exit')
+			await asyncio.sleep_ms(10)
+		self.__page_prepared = True
+		print('loop fill page exit')
