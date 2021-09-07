@@ -166,7 +166,7 @@ class FontLibTest3(object):
 			self.__y += self.__scroll_speed
 
 			sleep(self.__scroll_interval / 1000)
-		print('thread exit scroll')
+		print('thread scroll exit')
 
 	def __fill_page_thread(self):
 		while self.__current_page < self.__total_pages:
