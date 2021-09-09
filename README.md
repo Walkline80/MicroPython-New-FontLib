@@ -70,12 +70,12 @@ $ python fontlib.py
 
 ```docs
 HZK Info: .//client/combined.bin
-    file size : 303520
+    file size : 261972
   font height : 16
     data size : 32
-    scan mode : Horizontal
+    scan mode : Vertical
    byte order : LSB
-   characters : 8932
+   characters : 7710
 
 ！: b'\x00\x00\x00\x00\x00\x00\x08\x00\x0c\x00\x08\x00\x08\x00\x08\x00\x08\x00\x08\x00\x08\x00\x08\x00\x00\x00\x08\x00\x08\x00\x00\x00'
 
@@ -229,15 +229,21 @@ $ ab abconfig-mpy
 
 方法参见 [使用图标字体生成字库](./ICONFONT.md)
 
+### 选取其它语种字符的方法
+
+`GB2312`收录了包括拉丁字母、希腊字母、日文平假名及片假名字母、俄语西里尔字母在内的 682 个全角字符
+
+可以用键盘输入它们，但是并不一定简单，好在我们还可以从 [GB2312简体中文编码表](http://tools.jb51.net/table/gb2312) 页面中直接查看复制它们
+
 ### 关于速度
 
 > 以当前字库文件举例：
 > * 文件名：`combined.bin`
-> * 文件大小：`303,520`字节
+> * 文件大小：`261,972`字节
 > * `GB2312`索引表大小：`17,672`字节
 > * 点阵大小：`16x16`像素
 > * 字符数据大小：`32`字节
-> * 字符总数：`8932`个（包含`ASCII`和`GB2312`）
+> * 字符总数：`7710`个（包含`ASCII`和`GB2312`）
 
 
 * 实例化`FontLib`时打开字库文件，读取文件头信息，大约 12 ms
