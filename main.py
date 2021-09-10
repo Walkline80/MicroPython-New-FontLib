@@ -132,7 +132,7 @@ if __name__ == '__main__':
 			elif selected == 3:
 				# 一次读取并显示一个字符数据
 				runner.load_font(fontfile)
-				runner.run_test2(chars)
+				runner.run_test3(chars)
 			elif selected == 4:
 				# 要测试 FontLibTest2 的代码，需要生成一个新字库
 				#
