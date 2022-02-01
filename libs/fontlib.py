@@ -16,19 +16,19 @@ class FontLibException(Exception):
 	pass
 
 class FontLibHeader(object):
-	LENGTH = const(24)
+	LENGTH = const(25)
 	SCAN_MODE_HORIZONTAL = BYTE_ORDER_LSB = const(0)
 	SCAN_MODE_VERTICAL = BYTE_ORDER_MSB = const(1)
 	SCAN_MODE = {SCAN_MODE_HORIZONTAL: 'Horizontal', SCAN_MODE_VERTICAL: 'Vertical'}
 	BYTE_ORDER = {BYTE_ORDER_LSB: 'LSB', BYTE_ORDER_MSB: 'MSB'}
 
-	# @micropython.native
 	def __init__(self, header_data):
 		if len(header_data) != FontLibHeader.LENGTH:
 			raise FontLibHeaderException('Invalid header length')
 
 		self.identify,\
 		self.file_size,\
+		self.font_width,\
 		self.font_height,\
 		self.characters,\
 		self.has_index_table,\
@@ -36,12 +36,12 @@ class FontLibHeader(object):
 		self.byte_order,\
 		self.ascii_start,\
 		self.gb2312_start,\
-		_ = struct.unpack('<4sIBHBBBII2s', header_data)
+		_ = struct.unpack('<4sIBBHBBBII2s', header_data)
 
 		if self.identify not in (b'FMUX', b'FMUY'):
 			raise FontLibHeaderException('Invalid font file')
 
-		self.data_size = ((self.font_height - 1) // 8 + 1) * self.font_height
+		self.data_size = ((self.font_width - 1) // 8 + 1) * self.font_height
 
 		if self.has_index_table:
 			self.index_table_address = FontLibHeader.LENGTH
@@ -60,7 +60,6 @@ class FontLib(object):
 	GB2312_START = const(0x80)
 	GB2312_END = const(0xffef)
 
-	# @micropython.native
 	def __init__(self, font_filename):
 		self.__font_filename = font_filename
 		self.__header = None
@@ -69,15 +68,12 @@ class FontLib(object):
 			self.__header = FontLibHeader(memoryview(font_file.read(FontLibHeader.LENGTH)))
 			self.__placeholder_buffer = self.__get_character_unicode_buffer(font_file, {ord('?')}, True)[0][1] # [ord('?')]
 
-		# gc.collect()
-
 	def __is_ascii(self, char_code):
 		return FontLib.ASCII_START <= char_code <= FontLib.ASCII_END
 
 	def __is_gb2312(self, char_code):
 		return FontLib.GB2312_START <= char_code <= FontLib.GB2312_END
 
-	# @micropython.native
 	def __get_character_unicode_buffer(self, font_file, unicode_set, is_placeholder=False):
 		buffer_list = []
 		ascii_list = []
@@ -167,7 +163,6 @@ class FontLib(object):
 				for char in self.__get_character_unicode_buffer(font_file, unicode_list[count * chunk:count * chunk + chunk]):
 					result[char[0]] = char[1]
 
-		# gc.collect()
 		return result
 
 	@property
@@ -191,6 +186,10 @@ class FontLib(object):
 		return self.__header.file_size
 	
 	@property
+	def font_width(self):
+		return self.__header.font_width
+
+	@property
 	def font_height(self):
 		return self.__header.font_height
 
@@ -202,6 +201,7 @@ class FontLib(object):
 		print('\
 HZK Info: {}\n\
     file size : {}\n\
+   font width : {}\n\
   font height : {}\n\
     data size : {}\n\
     scan mode : {} ({})\n\
@@ -210,6 +210,7 @@ HZK Info: {}\n\
    characters : {}\n'.format(
 			  self.__font_filename,
 			  self.file_size,
+			  self.font_width,
 			  self.font_height,
 			  self.data_size,
 			  self.scan_mode,
