@@ -28,10 +28,11 @@ class FontLibException(Exception):
 
 '''
 Header Data Sample:
-	b'FMUX\xa4\xa1\x04\x00\x10\xe4"\x01$E\x00\x00$Q\x00\x00\\\x00A\x00' # little-endian
+	b'FMUX\xa4\xa1\x04\x00\x10\x10\xe4"\x01$E\x00\x00$Q\x00\x00\\\x00A\x00' # little-endian
 
 	[4] b'FMUX'				- identify
 	[4] b'\xa4\xa1\x04\x00'	- file length
+	[1] b'\x10'				- font width
 	[1] b'\x10'				- font height
 	[2] b'\xe4"'			- character counts
 	[1] b'\x01'				- has index table
@@ -42,7 +43,11 @@ Header Data Sample:
 	[2] b'\x00\x00'		- reserved
 '''
 class FontLibHeader(object):
-	LENGTH = 24
+	LENGTH = 25
+	SCAN_MODE_HORIZONTAL = BYTE_ORDER_LSB = 0
+	SCAN_MODE_VERTICAL = BYTE_ORDER_MSB = 1
+	SCAN_MODE = {SCAN_MODE_HORIZONTAL: 'Horizontal', SCAN_MODE_VERTICAL: 'Vertical'}
+	BYTE_ORDER = {BYTE_ORDER_LSB: 'LSB', BYTE_ORDER_MSB: 'MSB'}
 
 	def __init__(self, header_data):
 		if len(header_data) != FontLibHeader.LENGTH:
@@ -50,6 +55,7 @@ class FontLibHeader(object):
 
 		self.identify,\
 		self.file_size,\
+		self.font_width,\
 		self.font_height,\
 		self.characters,\
 		self.has_index_table,\
@@ -57,12 +63,12 @@ class FontLibHeader(object):
 		self.byte_order,\
 		self.ascii_start,\
 		self.gb2312_start,\
-		_ = struct.unpack('<4sIBHBBBII2s', header_data)
+		_ = struct.unpack('<4sIBBHBBBII2s', header_data)
 
 		if self.identify not in (b'FMUX', b'FMUY'):
 			raise FontLibHeaderException('Invalid font file')
 
-		self.data_size = ((self.font_height - 1) // 8 + 1) * self.font_height
+		self.data_size = ((self.font_width - 1) // 8 + 1) * self.font_height
 
 		if self.has_index_table:
 			self.index_table_address = FontLibHeader.LENGTH
@@ -71,10 +77,10 @@ class FontLibHeader(object):
 
 
 class FontLib(object):
-	SCAN_MODE_HORIZONTAL = BYTE_ORDER_LSB = 0
-	SCAN_MODE_VERTICAL = BYTE_ORDER_MSB = 1
-	SCAN_MODE = {SCAN_MODE_HORIZONTAL: 'Horizontal', SCAN_MODE_VERTICAL: 'Vertical'}
-	BYTE_ORDER = {BYTE_ORDER_LSB: 'LSB', BYTE_ORDER_MSB: 'MSB'}
+	ASCII_START = 0x20
+	ASCII_END = 0x7f
+	GB2312_START = 0x80
+	GB2312_END = 0xffef
 
 	def __init__(self, font_filename):
 		self.__font_filename = font_filename
@@ -87,10 +93,10 @@ class FontLib(object):
 		gc.collect()
 
 	def __is_ascii(self, char_code):
-		return 0x20 <= char_code <= 0x7f
+		return FontLib.ASCII_START <= char_code <= FontLib.ASCII_END
 
 	def __is_gb2312(self, char_code):
-		return 0x80 <= char_code <= 0xffef
+		return FontLib.GB2312_START <= char_code <= FontLib.GB2312_END
 
 	def __get_character_unicode_buffer(self, font_file, unicode_set, is_placeholder=False):
 		buffer_list = []
@@ -127,7 +133,7 @@ class FontLib(object):
 		gc.disable()
 		for unicode in unicode_set:
 			if self.__is_ascii(unicode):
-				char_offset = self.__header.ascii_start + (unicode - 0x20) * self.__header.data_size
+				char_offset = self.__header.ascii_start + (unicode - FontLib.ASCII_START) * self.__header.data_size
 				ascii_list.append([unicode, char_offset])
 			elif self.__is_gb2312(unicode):
 				gb2312_list.append([unicode, struct.pack('<H', unicode), None])
@@ -172,11 +178,9 @@ class FontLib(object):
 
 			chunk = 30
 			for count in range(0, len(unicode_list) // chunk + 1):
-				# result.append(self.__get_character_unicode_buffer(font_file, list(unicode_set)[count * chunk:count * chunk + chunk]))
 				for char in self.__get_character_unicode_buffer(font_file, unicode_list[count * chunk:count * chunk + chunk]):
 					result[char[0]] = char[1]
 
-		# gc.collect()
 		return result
 
 	@property
@@ -196,6 +200,10 @@ class FontLib(object):
 		return self.__header.file_size
 	
 	@property
+	def font_width(self):
+		return self.__header.font_width
+
+	@property
 	def font_height(self):
 		return self.__header.font_height
 
@@ -207,17 +215,21 @@ class FontLib(object):
 		print('\
 HZK Info: {}\n\
     file size : {}\n\
+   font width : {}\n\
   font height : {}\n\
     data size : {}\n\
-    scan mode : {}\n\
-   byte order : {}\n\
+    scan mode : {} ({})\n\
+   byte order : {} ({})\n\
    characters : {}\n'.format(
 			  self.__font_filename,
 			  self.file_size,
+			  self.font_width,
 			  self.font_height,
 			  self.data_size,
-			  FontLib.SCAN_MODE[self.scan_mode],
-			  FontLib.BYTE_ORDER[self.byte_order],
+			  self.scan_mode,
+			  FontLibHeader.SCAN_MODE[self.scan_mode],
+			  self.byte_order,
+			  FontLibHeader.BYTE_ORDER[self.byte_order],
 			  self.characters
 			))
 
@@ -304,8 +316,8 @@ def run_test():
 			print('###  get {} chars: {} ms, avg: {} ms'.format(len(chars), diff_time, diff_time / len(chars)))
 
 			format = framebuf.MONO_VLSB
-			if fontlib.scan_mode == FontLib.SCAN_MODE_HORIZONTAL:
-				format = framebuf.MONO_HMSB if fontlib.byte_order == FontLib.BYTE_ORDER_MSB else framebuf.MONO_HLSB
+			if fontlib.scan_mode == FontLibHeader.SCAN_MODE_HORIZONTAL:
+				format = framebuf.MONO_HMSB if fontlib.byte_order == FontLib.FontLibHeader else framebuf.MONO_HLSB
 			
 			def __fill_buffer(buffer, width, height, x, y):
 				fb = framebuf.FrameBuffer(bytearray(buffer), width, height, format)
@@ -328,7 +340,7 @@ def run_test():
 			diff_time = ticks_diff(ticks_us(), start_time) / 1000
 			print('### show {} chars: {} ms, avg: {} ms'.format(len(chars), diff_time, diff_time / len(chars)))
 	else:
-		buffer_dict = fontlib.get_characters('\ue900鼽爱我，中华！Hello⒉あβǚㄘＢ⑴■☆')
+		buffer_dict = fontlib.get_characters("Monitor") # '\ue900鼽爱我，中华！Hello⒉あβǚㄘＢ⑴■☆')
 		buffer_list = []
 
 		for unicode, buffer in buffer_dict.items():
@@ -336,11 +348,12 @@ def run_test():
 			print("{}: {}\n".format(chr(unicode), bytes(buffer)))
 
 		data_size = fontlib.data_size
+		font_width = fontlib.font_width
 		font_height = fontlib.font_height
 		bytes_per_row = int(data_size / font_height)
-		chars_per_row = 150 // font_height
+		chars_per_row = 150 // font_width
 
-		if fontlib.scan_mode == FontLib.SCAN_MODE_VERTICAL:
+		if fontlib.scan_mode == FontLibHeader.SCAN_MODE_VERTICAL:
 			for char in range(math.ceil(len(buffer_list) / chars_per_row)):
 				for count in range(bytes_per_row):
 					for col in range(8):
@@ -348,7 +361,7 @@ def run_test():
 						for buffer in buffer_list[char * chars_per_row:char * chars_per_row + chars_per_row]:
 							if len(buffer[1]) < data_size: buffer[1] = bytes(data_size)
 
-							for index in range(count * font_height, count * font_height + font_height):
+							for index in range(count * font_width, count * font_width + font_width):
 								data = ''.join(reversed('{:08b}'.format(buffer[1][index])))
 								print('{}'.format(data[col].replace('0', '.').replace('1', '@')), end='')
 							print(' ', end='')
@@ -361,10 +374,10 @@ def run_test():
 						for index in range(bytes_per_row):
 							if len(buffer[1]) < data_size: buffer[1] = bytes(data_size)
 							data = buffer[1][row * bytes_per_row + index]
-							if fontlib.byte_order == FontLib.BYTE_ORDER_MSB:
+							if fontlib.byte_order == FontLibHeader.BYTE_ORDER_MSB:
 								data = reverseBits(buffer[1][row * bytes_per_row + index])
 
-							offset = 8 if (index + 1) * 8 < font_height else 8 - ((index + 1) * 8 - font_height)
+							offset = 8 if (index + 1) * 8 < font_width else 8 - ((index + 1) * 8 - font_width)
 							print('{:08b}'.format(data)[:offset].replace('0', '.').replace('1', '@'), end='')
 						print(' ', end='')
 					print('')
