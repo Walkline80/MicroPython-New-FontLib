@@ -317,7 +317,7 @@ def run_test():
 
 			format = framebuf.MONO_VLSB
 			if fontlib.scan_mode == FontLibHeader.SCAN_MODE_HORIZONTAL:
-				format = framebuf.MONO_HMSB if fontlib.byte_order == FontLib.FontLibHeader else framebuf.MONO_HLSB
+				format = framebuf.MONO_HMSB if fontlib.byte_order == FontLibHeader.BYTE_ORDER_MSB else framebuf.MONO_HLSB
 			
 			def __fill_buffer(buffer, width, height, x, y):
 				fb = framebuf.FrameBuffer(bytearray(buffer), width, height, format)
